@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FixFlo POS</title>
+    <title>9to5 POS</title>
     <script>
         window.location.href = 'login.php';
     </script>

@@ -92,14 +92,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $edit_mode ? 'Edit' : 'Add'; ?> Product - FixFlo POS</title>
+    <title><?php echo $edit_mode ? 'Edit' : 'Add'; ?> Product</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
     <div class="sidebar">
         <div class="logo">
-            <h2>FixFlo</h2>
+            <img src="images/logo.jpg" alt="FixFlo Logo">
         </div>
         <button class="menu-toggle" onclick="toggleMobileMenu()">
             <i class="fas fa-bars"></i>
@@ -116,6 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <a href="add_product.php" class="active">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products
             </a>
+            <?php if ($_SESSION['role'] == 'admin'): ?>
+            <a href="add_category.php">
+                <span><i class="fas fa-folder-plus"></i></span> Add Category
+            </a>
+            <?php endif; ?>
             <a href="add_product.php">
                 <span><i class="fas fa-edit"></i></span> Edit
             </a>
@@ -136,12 +141,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </header>
 
         <div class="content-area">
-            <div class="form-section">
+            <div class="form-section-wide">
                 <?php if ($message): ?>
                     <div class="alert"><?php echo $message; ?></div>
                 <?php endif; ?>
                 
-                <form method="POST" action="" class="product-form">
+                <form method="POST" action="" class="product-form-wide">
                     <?php if ($edit_mode): ?>
                         <input type="hidden" name="edit_id" value="<?php echo $product['id']; ?>">
                     <?php endif; ?>

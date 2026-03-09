@@ -40,9 +40,13 @@ function getSaleItems($conn, $sale_id) {
     return mysqli_query($conn, $items_query);
 }
 
-// Get recent logs - most recent first
-$logs_query = "SELECT * FROM logs ORDER BY id DESC, log_time DESC LIMIT 10";
-$logs_result = mysqli_query($conn, $logs_query);
+// Get recent sales/transactions for admin dashboard
+$admin_sales_query = "SELECT s.*, u.username 
+                      FROM sales s 
+                      LEFT JOIN users u ON s.user_id = u.id 
+                      ORDER BY s.created_at DESC 
+                      LIMIT 20";
+$admin_sales_result = mysqli_query($conn, $admin_sales_query);
 
 // Handle product deletion (admin only)
 if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
@@ -60,7 +64,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $isRegularUser ? 'POS System' : 'Dashboard'; ?> - FixFlo</title>
+    <title><?php echo $isRegularUser ? 'POS System' : 'Dashboard'; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="dashboard.css">
     <?php if ($isRegularUser): ?>
@@ -70,7 +74,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 <body>
     <div class="sidebar <?php echo $isRegularUser ? 'pos-sidebar' : ''; ?>">
         <div class="logo">
-            <h2>FixFlo</h2>
+            <img src="images/logo.jpg" alt="FixFlo Logo">
         </div>
         <button class="menu-toggle" onclick="toggleMobileMenu()">
             <i class="fas fa-bars"></i>
@@ -85,6 +89,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             </a>
             <a href="add_product.php">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products
+            </a>
+            <a href="add_category.php">
+                <span><i class="fas fa-folder-plus"></i></span> Add Category
             </a>
             <a href="add_product.php">
                 <span><i class="fas fa-edit"></i></span> Edit
@@ -319,7 +326,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                                 <th>Product ID</th>
                                 <th>Product Name</th>
                                 <th>Category</th>
-                                <th>Payments</th>
+                                <th>Price</th>
                                 <th>Status</th>
                                 <th>Stock</th>
                                 <th colspan="2">Details</th>
@@ -361,31 +368,48 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             <div class="logs-section">
                 <h2>Logs</h2>
                 <div class="logs-container">
-                    <?php if (mysqli_num_rows($logs_result) > 0): ?>
-                        <?php while ($log = mysqli_fetch_assoc($logs_result)): ?>
+                    <?php if (mysqli_num_rows($admin_sales_result) > 0): ?>
+                        <?php while ($sale = mysqli_fetch_assoc($admin_sales_result)): ?>
                             <div class="log-item">
                                 <div class="log-header">
-                                    <strong>Product</strong> 
-                                    <strong>Quantity</strong> 
-                                    <strong>Time</strong>
+                                    <div class="log-header-left">
+                                        <span class="log-id">#<?php echo $sale['id']; ?></span>
+                                        <span class="log-user">by <?php echo htmlspecialchars($sale['username']); ?></span>
+                                    </div>
+                                    <span class="log-time">
+                                        <?php echo date('M d, Y - h:i A', strtotime($sale['created_at'])); ?>
+                                    </span>
                                 </div>
                                 <div class="log-body">
-                                    <span><?php echo htmlspecialchars($log['product_name']); ?></span>
-                                    <span class="<?php echo $log['quantity'] < 0 ? 'qty-negative' : 'qty-positive'; ?>">
-                                        <?php echo $log['quantity'] > 0 ? '+' : ''; ?><?php echo $log['quantity']; ?>
-                                    </span>
-                                    <span class="log-time">
-                                        <?php echo date('h:i A', strtotime($log['log_time'])); ?><br>
-                                        <?php echo date('d.m.y', strtotime($log['log_time'])); ?>
-                                    </span>
-                                </div>
-                                <div class="log-footer">
-                                    by <?php echo htmlspecialchars($log['username']); ?>
+                                    <div class="log-items-list">
+                                        <?php 
+                                        $sale_items_result = getSaleItems($conn, $sale['id']);
+                                        while ($item = mysqli_fetch_assoc($sale_items_result)): 
+                                        ?>
+                                            <div class="log-product-item">
+                                                <div class="log-product-info">
+                                                    <span class="log-product-name"><?php echo htmlspecialchars($item['product_name']); ?></span>
+                                                    <span class="log-product-qty">x<?php echo $item['quantity']; ?></span>
+                                                </div>
+                                                <span class="log-product-price">₱<?php echo number_format($item['subtotal'], 2); ?></span>
+                                            </div>
+                                        <?php endwhile; ?>
+                                    </div>
+                                    <div class="log-summary">
+                                        <div class="log-detail">
+                                            <span class="detail-label">Total:</span>
+                                            <span class="detail-value total-amount">₱<?php echo number_format($sale['total_amount'], 2); ?></span>
+                                        </div>
+                                        <div class="log-detail">
+                                            <span class="detail-label">Payment:</span>
+                                            <span class="detail-value payment-method"><?php echo htmlspecialchars($sale['payment_method'] ?? 'N/A'); ?></span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <p style="text-align: center; color: #777;">No logs available</p>
+                        <p style="text-align: center; color: #777;">No transactions available</p>
                     <?php endif; ?>
                 </div>
             </div>
