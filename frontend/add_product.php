@@ -11,10 +11,14 @@ $edit_mode = false;
 $product = null;
 $message = '';
 
+// Get all categories from database
+$categories_query = "SELECT * FROM categories ORDER BY category_name ASC";
+$categories_result = mysqli_query($conn, $categories_query);
+
 // Check if editing existing product
 if (isset($_GET['edit_id'])) {
     $edit_id = intval($_GET['edit_id']);
-    $edit_query = "SELECT * FROM products WHERE id = $edit_id";
+    $edit_query = "SELECT p.*, c.category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $edit_id";
     $edit_result = mysqli_query($conn, $edit_query);
     
     if (mysqli_num_rows($edit_result) == 1) {
@@ -26,7 +30,7 @@ if (isset($_GET['edit_id'])) {
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $product_name = mysqli_real_escape_string($conn, $_POST['product_name']);
-    $category = mysqli_real_escape_string($conn, $_POST['category']);
+    $category_id = intval($_POST['category_id']);
     $price = floatval($_POST['price']);
     $stock = intval($_POST['stock']);
     $status = $stock > 0 ? 'Available' : 'Out of Stock';
@@ -43,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         $update_query = "UPDATE products SET 
                         product_name = '$product_name', 
-                        category = '$category', 
+                        category_id = $category_id, 
                         price = $price, 
                         stock = $stock, 
                         status = '$status' 
@@ -65,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     } else {
         // Insert new product
-        $insert_query = "INSERT INTO products (product_name, category, price, stock, status) 
-                        VALUES ('$product_name', '$category', $price, $stock, '$status')";
+        $insert_query = "INSERT INTO products (product_name, category_id, price, stock, status) 
+                        VALUES ('$product_name', $category_id, $price, $stock, '$status')";
         
         if (mysqli_query($conn, $insert_query)) {
             // Log the addition
@@ -150,14 +154,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                     
                     <div class="form-group">
-                        <label for="category">Category</label>
-                        <select id="category" name="category" required>
+                        <label for="category_id">Category</label>
+                        <select id="category_id" name="category_id" required>
                             <option value="">Select Category</option>
-                            <option value="Tools" <?php echo ($edit_mode && $product['category'] == 'Tools') ? 'selected' : ''; ?>>Tools</option>
-                            <option value="Paint" <?php echo ($edit_mode && $product['category'] == 'Paint') ? 'selected' : ''; ?>>Paint</option>
-                            <option value="Electrical" <?php echo ($edit_mode && $product['category'] == 'Electrical') ? 'selected' : ''; ?>>Electrical</option>
-                            <option value="Plumbing" <?php echo ($edit_mode && $product['category'] == 'Plumbing') ? 'selected' : ''; ?>>Plumbing</option>
-                            <option value="Fasteners" <?php echo ($edit_mode && $product['category'] == 'Fasteners') ? 'selected' : ''; ?>>Fasteners</option>
+                            <?php 
+                            mysqli_data_seek($categories_result, 0);
+                            while ($cat = mysqli_fetch_assoc($categories_result)): 
+                            ?>
+                                <option value="<?php echo $cat['id']; ?>" 
+                                    <?php echo ($edit_mode && $product['category_id'] == $cat['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($cat['category_name']); ?>
+                                </option>
+                            <?php endwhile; ?>
                         </select>
                     </div>
                     

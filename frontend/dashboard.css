@@ -88,12 +88,15 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
 .top-bar h1 {
   color: #2c3e50;
   font-size: 24px;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .user-info {
