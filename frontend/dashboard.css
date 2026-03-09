@@ -378,6 +378,22 @@ body {
   border-radius: 12px;
 }
 
+.log-product-qty.positive {
+  color: #27ae60;
+  background: #d4edda;
+}
+
+.log-product-qty.negative {
+  color: #e74c3c;
+  background: #f8d7da;
+}
+
+.log-product-reason {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
 .log-product-price {
   font-weight: 600;
   color: #27ae60;
@@ -1167,6 +1183,11 @@ body {
   display: flex;
   gap: 12px;
   margin-top: 10px;
+}
+
+.category-form .form-actions .btn-primary {
+  width: 180px;
+  flex: none;
 }
 
 .btn-primary,

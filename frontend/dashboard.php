@@ -35,12 +35,49 @@ function getSaleItems($conn, $sale_id) {
     return mysqli_query($conn, $items_query);
 }
 
-$admin_sales_query = "SELECT s.*, u.username 
-                      FROM sales s 
-                      LEFT JOIN users u ON s.user_id = u.id 
-                      ORDER BY s.created_at DESC 
-                      LIMIT 20";
-$admin_sales_result = mysqli_query($conn, $admin_sales_query);
+$admin_inventory_logs_query = "(SELECT 
+                                    l.product_name,
+                                    l.quantity as change_quantity,
+                                    l.username,
+                                    l.log_time as timestamp,
+                                    l.action as reason
+                                FROM logs l)
+                                UNION ALL
+                                (SELECT 
+                                    p.product_name,
+                                    ih.change_quantity,
+                                    u.username,
+                                    ih.created_at as timestamp,
+                                    ih.reason
+                                FROM inventory_history ih
+                                LEFT JOIN products p ON ih.product_id = p.id
+                                LEFT JOIN users u ON ih.user_id = u.id
+                                WHERE ih.reason != 'Product Updated')
+                                ORDER BY timestamp DESC
+                                LIMIT 100";
+$admin_inventory_logs_result = mysqli_query($conn, $admin_inventory_logs_query);
+
+$grouped_logs = [];
+if ($admin_inventory_logs_result) {
+    while ($log = mysqli_fetch_assoc($admin_inventory_logs_result)) {
+        $timestamp = date('Y-m-d H:i:s', strtotime($log['timestamp']));
+        $key = $timestamp . '|' . $log['username'];
+        
+        if (!isset($grouped_logs[$key])) {
+            $grouped_logs[$key] = [
+                'timestamp' => $log['timestamp'],
+                'username' => $log['username'],
+                'items' => []
+            ];
+        }
+        
+        $grouped_logs[$key]['items'][] = [
+            'product_name' => $log['product_name'],
+            'change_quantity' => $log['change_quantity'],
+            'reason' => $log['reason']
+        ];
+    }
+}
 
 if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     $delete_id = intval($_GET['delete_id']);
@@ -359,50 +396,38 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             </div>
 
             <div class="logs-section">
-                <h2>Logs</h2>
+                <h2>Inventory Logs</h2>
                 <div class="logs-container">
-                    <?php if (mysqli_num_rows($admin_sales_result) > 0): ?>
-                        <?php while ($sale = mysqli_fetch_assoc($admin_sales_result)): ?>
+                    <?php if (!empty($grouped_logs)): ?>
+                        <?php foreach ($grouped_logs as $group): ?>
                             <div class="log-item">
                                 <div class="log-header">
                                     <div class="log-header-left">
-                                        <span class="log-id">#<?php echo $sale['id']; ?></span>
-                                        <span class="log-user">by <?php echo htmlspecialchars($sale['username']); ?></span>
+                                        <span class="log-user">by <?php echo htmlspecialchars($group['username']); ?></span>
                                     </div>
                                     <span class="log-time">
-                                        <?php echo date('M d, Y - h:i A', strtotime($sale['created_at'])); ?>
+                                        <?php echo date('M d, Y - h:i A', strtotime($group['timestamp'])); ?>
                                     </span>
                                 </div>
                                 <div class="log-body">
                                     <div class="log-items-list">
-                                        <?php 
-                                        $sale_items_result = getSaleItems($conn, $sale['id']);
-                                        while ($item = mysqli_fetch_assoc($sale_items_result)): 
-                                        ?>
+                                        <?php foreach ($group['items'] as $item): ?>
                                             <div class="log-product-item">
                                                 <div class="log-product-info">
                                                     <span class="log-product-name"><?php echo htmlspecialchars($item['product_name']); ?></span>
-                                                    <span class="log-product-qty">x<?php echo $item['quantity']; ?></span>
+                                                    <span class="log-product-qty <?php echo $item['change_quantity'] > 0 ? 'positive' : 'negative'; ?>">
+                                                        <?php echo $item['change_quantity'] > 0 ? '+' : ''; ?><?php echo $item['change_quantity']; ?>
+                                                    </span>
                                                 </div>
-                                                <span class="log-product-price">₱<?php echo number_format($item['subtotal'], 2); ?></span>
+                                                <span class="log-product-reason"><?php echo htmlspecialchars($item['reason']); ?></span>
                                             </div>
-                                        <?php endwhile; ?>
-                                    </div>
-                                    <div class="log-summary">
-                                        <div class="log-detail">
-                                            <span class="detail-label">Total:</span>
-                                            <span class="detail-value total-amount">₱<?php echo number_format($sale['total_amount'], 2); ?></span>
-                                        </div>
-                                        <div class="log-detail">
-                                            <span class="detail-label">Payment:</span>
-                                            <span class="detail-value payment-method"><?php echo htmlspecialchars($sale['payment_method'] ?? 'N/A'); ?></span>
-                                        </div>
+                                        <?php endforeach; ?>
                                     </div>
                                 </div>
                             </div>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     <?php else: ?>
-                        <p style="text-align: center; color: #777;">No transactions available</p>
+                        <p style="text-align: center; color: #777;">No inventory changes available</p>
                     <?php endif; ?>
                 </div>
             </div>

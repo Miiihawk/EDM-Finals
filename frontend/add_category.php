@@ -131,9 +131,6 @@ if (isset($_GET['delete_id'])) {
                             <button type="submit" class="btn-primary">
                                 <i class="fas fa-plus"></i> Add Category
                             </button>
-                            <a href="dashboard.php" class="btn-secondary">
-                                <i class="fas fa-arrow-left"></i> Back to Dashboard
-                            </a>
                         </div>
                     </form>
                 </div>
