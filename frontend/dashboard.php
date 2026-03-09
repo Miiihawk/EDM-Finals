@@ -123,9 +123,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             <a href="add_category.php">
                 <span><i class="fas fa-folder-plus"></i></span> Add Category
             </a>
-            <a href="add_product.php">
-                <span><i class="fas fa-edit"></i></span> Edit
-            </a>
             <?php endif; ?>
             <a href="../backend/logout.php">
                 <span><i class="fas fa-sign-out-alt"></i></span> Logout

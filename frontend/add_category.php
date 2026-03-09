@@ -89,9 +89,6 @@ if (isset($_GET['delete_id'])) {
             <a href="add_category.php" class="active">
                 <span><i class="fas fa-folder-plus"></i></span> Add Category
             </a>
-            <a href="add_product.php">
-                <span><i class="fas fa-edit"></i></span> Edit
-            </a>
             <a href="../backend/logout.php">
                 <span><i class="fas fa-sign-out-alt"></i></span> Logout
             </a>

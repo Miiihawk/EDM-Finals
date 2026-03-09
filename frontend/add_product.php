@@ -123,9 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <span><i class="fas fa-folder-plus"></i></span> Add Category
             </a>
             <?php endif; ?>
-            <a href="add_product.php">
-                <span><i class="fas fa-edit"></i></span> Edit
-            </a>
             <a href="../backend/logout.php">
                 <span><i class="fas fa-sign-out-alt"></i></span> Logout
             </a>

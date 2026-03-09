@@ -46,9 +46,6 @@ if (isset($_GET['delete_user'])) {
             <a href="add_product.php">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products
             </a>
-            <a href="add_product.php">
-                <span><i class="fas fa-edit"></i></span> Edit
-            </a>
             <a href="../backend/logout.php">
                 <span><i class="fas fa-sign-out-alt"></i></span> Logout
             </a>
