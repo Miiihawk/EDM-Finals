@@ -223,14 +223,11 @@ Restart Apache after making changes.
 
 ## Recent Updates
 
-- ✅ Removed all localStorage dependencies (now 100% MySQL-based)
 - ✅ Added Font Awesome icons throughout the application
 - ✅ Implemented search functionality for POS interface
 - ✅ Fixed admin dashboard search and sort functions
 - ✅ Added 12-hour time format with AM/PM for logs
 - ✅ Logs now display most recent entries first
-- ✅ Default product sorting by ID
-- ✅ Organized project structure (frontend/backend separation)
 
 ## Notes
 
