@@ -1,6 +1,3 @@
-/* POS System CSS for Regular Users */
-
-/* POS Grid Layout */
 .pos-container {
   display: grid;
   grid-template-columns: 1fr 400px;
@@ -10,7 +7,6 @@
   overflow: hidden;
 }
 
-/* Products Section */
 .pos-products {
   display: flex;
   flex-direction: column;
@@ -21,7 +17,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Controls Section */
 .pos-controls {
   display: flex;
   gap: 15px;
@@ -101,7 +96,6 @@
   border-color: #667eea;
 }
 
-/* Products Table */
 .products-table-wrapper {
   flex: 1;
   overflow-y: auto;
@@ -238,7 +232,6 @@
   box-shadow: none;
 }
 
-/* Cart Section */
 .pos-cart {
   background: white;
   border-radius: 12px;
@@ -414,7 +407,6 @@
   transform: none;
 }
 
-/* Header DateTime and History Button */
 .header-datetime {
   display: flex;
   align-items: center;
@@ -459,7 +451,6 @@
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-/* Transaction History Overlay */
 .transaction-history-overlay {
   position: fixed;
   top: 0;
@@ -682,7 +673,6 @@
   margin: 0;
 }
 
-/* Payment Method Selector */
 .payment-method-selector {
   padding: 15px 0;
   border-top: 2px solid #e8eef5;
@@ -739,19 +729,16 @@
   color: white;
 }
 
-/* Simple POS Sidebar */
 .sidebar.pos-sidebar nav a {
   font-size: 14px;
 }
 
-/* Responsive */
 @media (max-width: 1200px) {
   .pos-container {
     grid-template-columns: 1fr 350px;
   }
 }
 
-/* Tablets (768px) */
 @media (max-width: 768px) {
   .pos-container {
     grid-template-columns: 1fr;
@@ -846,7 +833,6 @@
   }
 }
 
-/* Mobile Phones (480px) */
 @media (max-width: 480px) {
   .pos-container {
     padding: 8px;
@@ -877,7 +863,6 @@
     font-size: 11px;
   }
 
-  /* Make table scrollable horizontally on mobile */
   .products-table-wrapper {
     overflow-x: auto;
   }
@@ -929,9 +914,3 @@
     font-size: 14px;
   }
 }
-
-
-
-
-
-

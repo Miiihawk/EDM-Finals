@@ -1,20 +1,16 @@
 <?php
 require_once '../backend/config.php';
 
-// Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: dashboard.php');
     exit();
 }
 
-// Get all users
 $users_query = "SELECT * FROM users ORDER BY id ASC";
 $users_result = mysqli_query($conn, $users_query);
 
-// Handle user deletion
 if (isset($_GET['delete_user'])) {
     $delete_id = intval($_GET['delete_user']);
-    // Don't allow deleting yourself
     if ($delete_id != $_SESSION['user_id']) {
         mysqli_query($conn, "DELETE FROM users WHERE id = $delete_id");
     }
@@ -114,7 +110,6 @@ if (isset($_GET['delete_user'])) {
     </div>
 
     <script>
-        // Mobile menu toggle
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');

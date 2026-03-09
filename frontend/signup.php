@@ -13,7 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($password !== $confirm_password) {
         $error = 'Passwords do not match';
     } else {
-        // Check if username already exists
         $check_query = "SELECT * FROM users WHERE username = '$username'";
         $check_result = mysqli_query($conn, $check_query);
         

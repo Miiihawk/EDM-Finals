@@ -1,4 +1,3 @@
--- FixFlo POS System Database Setup
 -- Create database
 CREATE DATABASE IF NOT EXISTS pos_system;
 USE pos_system;

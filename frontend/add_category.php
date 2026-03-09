@@ -1,7 +1,6 @@
 <?php
 require_once '../backend/config.php';
 
-// Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: dashboard.php');
     exit();
@@ -10,12 +9,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
 $message = '';
 $messageType = '';
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $category_name = mysqli_real_escape_string($conn, trim($_POST['category_name']));
     
     if (!empty($category_name)) {
-        // Check if category already exists
         $check_query = "SELECT id FROM categories WHERE category_name = '$category_name'";
         $check_result = mysqli_query($conn, $check_query);
         
@@ -23,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $message = 'Category already exists!';
             $messageType = 'error';
         } else {
-            // Insert new category
             $insert_query = "INSERT INTO categories (category_name) VALUES ('$category_name')";
             
             if (mysqli_query($conn, $insert_query)) {
@@ -40,15 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get all existing categories
 $categories_query = "SELECT * FROM categories ORDER BY category_name ASC";
 $categories_result = mysqli_query($conn, $categories_query);
 
-// Handle category deletion
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
     
-    // Check if category has products
     $check_products = "SELECT COUNT(*) as count FROM products WHERE category_id = $delete_id";
     $check_result = mysqli_query($conn, $check_products);
     $check_data = mysqli_fetch_assoc($check_result);

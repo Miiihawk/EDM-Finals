@@ -1,20 +1,17 @@
 <?php
 require_once '../backend/config.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
-// Get all products with category names - join with categories table
 $products_query = "SELECT p.*, c.category_name 
                    FROM products p 
                    LEFT JOIN categories c ON p.category_id = c.id 
                    ORDER BY p.id ASC";
 $products_result = mysqli_query($conn, $products_query);
 
-// Get all categories for filter buttons
 $categories_query = "SELECT DISTINCT c.category_name 
                      FROM categories c 
                      INNER JOIN products p ON c.id = p.category_id 
@@ -22,7 +19,6 @@ $categories_query = "SELECT DISTINCT c.category_name
                      ORDER BY c.category_name";
 $categories_result = mysqli_query($conn, $categories_query);
 
-// Get user's recent sales/transactions for regular users
 $sales_query = "SELECT s.*, u.username 
                 FROM sales s 
                 LEFT JOIN users u ON s.user_id = u.id 
@@ -31,7 +27,6 @@ $sales_query = "SELECT s.*, u.username
                 LIMIT 20";
 $sales_result = mysqli_query($conn, $sales_query);
 
-// Function to get sale items for a specific sale
 function getSaleItems($conn, $sale_id) {
     $items_query = "SELECT si.*, p.product_name 
                     FROM sale_items si 
@@ -40,7 +35,6 @@ function getSaleItems($conn, $sale_id) {
     return mysqli_query($conn, $items_query);
 }
 
-// Get recent sales/transactions for admin dashboard
 $admin_sales_query = "SELECT s.*, u.username 
                       FROM sales s 
                       LEFT JOIN users u ON s.user_id = u.id 
@@ -48,7 +42,6 @@ $admin_sales_query = "SELECT s.*, u.username
                       LIMIT 20";
 $admin_sales_result = mysqli_query($conn, $admin_sales_query);
 
-// Handle product deletion (admin only)
 if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     $delete_id = intval($_GET['delete_id']);
     mysqli_query($conn, "DELETE FROM products WHERE id = $delete_id");
@@ -56,7 +49,6 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     exit();
 }
 
-// Check if user is regular user or admin
 $isRegularUser = ($_SESSION['role'] != 'admin');
 ?>
 <!DOCTYPE html>
@@ -419,7 +411,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
     <?php if ($isRegularUser): ?>
     <script>
-        // Real-time Date and Time Display
         function updateDateTime() {
             const now = new Date();
             const options = { 
@@ -434,11 +425,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             document.getElementById('currentDateTime').textContent = now.toLocaleString('en-US', options);
         }
         
-        // Update time immediately and then every second
         updateDateTime();
         setInterval(updateDateTime, 1000);
 
-        // Transaction History Toggle
         function toggleTransactionHistory() {
             const overlay = document.getElementById('transactionHistoryOverlay');
             if (overlay.style.display === 'none' || overlay.style.display === '') {
@@ -448,11 +437,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
         }
 
-        // POS System JavaScript
         let cart = [];
         let selectedPaymentMethod = null;
 
-        // Payment Method Selection
         function selectPaymentMethod(method) {
             selectedPaymentMethod = method;
             const buttons = document.querySelectorAll('.payment-option');
@@ -638,7 +625,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             
             if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}\nPayment Method: ${selectedPaymentMethod}`)) {
-                // Log the sale with payment method
                 const formData = new FormData();
                 formData.append('cart', JSON.stringify(cart));
                 formData.append('total', total);
@@ -667,7 +653,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
         }
 
-        // Mobile menu toggle
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');
@@ -676,7 +661,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
     <?php else: ?>
     <script src="dashboard.js"></script>
     <script>
-        // Mobile menu toggle for admin view
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');

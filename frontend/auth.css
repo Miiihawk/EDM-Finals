@@ -1,4 +1,3 @@
-/* Authentication Pages CSS */
 * {
   margin: 0;
   padding: 0;
@@ -7,7 +6,7 @@
 
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background:  #00594C ;
+  background: #00594c;
   min-height: 100vh;
   display: flex;
   justify-content: center;
@@ -137,11 +136,6 @@ body {
   text-decoration: underline;
 }
 
-/* ========================================
-   MOBILE RESPONSIVENESS
-   ======================================== */
-
-/* Tablets and Below (768px) */
 @media (max-width: 768px) {
   .auth-container {
     max-width: 90%;
@@ -185,7 +179,6 @@ body {
   }
 }
 
-/* Mobile Phones (480px) */
 @media (max-width: 480px) {
   .auth-container {
     max-width: 95%;
@@ -242,7 +235,3 @@ body {
     font-size: 13px;
   }
 }
-
-
-
-

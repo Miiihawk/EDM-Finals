@@ -1,7 +1,6 @@
 <?php
 require_once '../backend/config.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
@@ -11,11 +10,9 @@ $edit_mode = false;
 $product = null;
 $message = '';
 
-// Get all categories from database
 $categories_query = "SELECT * FROM categories ORDER BY category_name ASC";
 $categories_result = mysqli_query($conn, $categories_query);
 
-// Check if editing existing product
 if (isset($_GET['edit_id'])) {
     $edit_id = intval($_GET['edit_id']);
     $edit_query = "SELECT p.*, c.category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $edit_id";
@@ -27,7 +24,6 @@ if (isset($_GET['edit_id'])) {
     }
 }
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $product_name = mysqli_real_escape_string($conn, $_POST['product_name']);
     $category_id = intval($_POST['category_id']);
@@ -36,10 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $status = $stock > 0 ? 'Available' : 'Out of Stock';
     
     if (isset($_POST['edit_id']) && !empty($_POST['edit_id'])) {
-        // Update existing product
         $edit_id = intval($_POST['edit_id']);
         
-        // Get old stock for logging
         $old_query = "SELECT stock, product_name FROM products WHERE id = $edit_id";
         $old_result = mysqli_query($conn, $old_query);
         $old_product = mysqli_fetch_assoc($old_result);
@@ -54,7 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         WHERE id = $edit_id";
         
         if (mysqli_query($conn, $update_query)) {
-            // Log the change
             if ($stock_diff != 0) {
                 $log_query = "INSERT INTO logs (product_name, quantity, action, username) 
                              VALUES ('$product_name', $stock_diff, 'Updated', '{$_SESSION['username']}')";
@@ -68,12 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $message = 'Error updating product';
         }
     } else {
-        // Insert new product
         $insert_query = "INSERT INTO products (product_name, category_id, price, stock, status) 
                         VALUES ('$product_name', $category_id, $price, $stock, '$status')";
         
         if (mysqli_query($conn, $insert_query)) {
-            // Log the addition
             $log_query = "INSERT INTO logs (product_name, quantity, action, username) 
                          VALUES ('$product_name', $stock, 'Added', '{$_SESSION['username']}')";
             mysqli_query($conn, $log_query);
@@ -200,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script>
-        // Mobile menu toggle
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');
