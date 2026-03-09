@@ -1,0 +1,224 @@
+/* Authentication Pages CSS */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+}
+
+.auth-box {
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.auth-box h1 {
+  color: #667eea;
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.auth-box h2 {
+  color: #333;
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+.success-message {
+  background: #efe;
+  color: #3c3;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border-left: 4px solid #3c3;
+}
+
+.success-message a {
+  color: #2a2;
+  font-weight: bold;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.auth-link {
+  text-align: center;
+  margin-top: 20px;
+  color: #777;
+}
+
+.auth-link a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-link a:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+/* Tablets and Below (768px) */
+@media (max-width: 768px) {
+  .auth-container {
+    max-width: 90%;
+    padding: 15px;
+  }
+
+  .auth-box {
+    padding: 30px 25px;
+  }
+
+  .auth-box h1 {
+    font-size: 28px;
+  }
+
+  .auth-box h2 {
+    font-size: 20px;
+    margin-bottom: 25px;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 11px;
+    font-size: 14px;
+  }
+
+  .btn-primary {
+    padding: 12px;
+    font-size: 15px;
+  }
+}
+
+/* Mobile Phones (480px) */
+@media (max-width: 480px) {
+  .auth-container {
+    max-width: 95%;
+    padding: 10px;
+  }
+
+  .auth-box {
+    padding: 25px 20px;
+    border-radius: 10px;
+  }
+
+  .auth-box h1 {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .auth-box h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+
+  .error-message,
+  .success-message {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .btn-primary {
+    padding: 11px;
+    font-size: 14px;
+  }
+
+  .auth-link {
+    margin-top: 15px;
+    font-size: 13px;
+  }
+}
