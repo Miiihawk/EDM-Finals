@@ -12,14 +12,22 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_name VARCHAR(100) NOT NULL,
-    category VARCHAR(50) NOT NULL,
+    category_id INT,
     price DECIMAL(10,2) NOT NULL,
     stock INT DEFAULT 0,
     status ENUM('Available', 'Out of Stock') DEFAULT 'Available',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (category_id) REFERENCES categories(id)
+    ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS logs (
@@ -29,4 +37,47 @@ CREATE TABLE IF NOT EXISTS logs (
     action VARCHAR(50) NOT NULL,
     username VARCHAR(50) NOT NULL,
     log_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+);
+
+
+CREATE TABLE IF NOT EXISTS sale_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sale_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    
+    FOREIGN KEY (sale_id) REFERENCES sales(id)
+    ON DELETE CASCADE,
+    
+    FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE
+);
+
+
+CREATE TABLE IF NOT EXISTS inventory_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    user_id INT,
+    change_quantity INT NOT NULL,
+    reason VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL
 );
