@@ -12,10 +12,10 @@ $products_query = "SELECT p.*, c.category_name
                    ORDER BY p.id ASC";
 $products_result = mysqli_query($conn, $products_query);
 
-$categories_query = "SELECT DISTINCT c.category_name 
-                     FROM categories c 
-                     INNER JOIN products p ON c.id = p.category_id 
-                     WHERE c.category_name IS NOT NULL 
+$categories_query = "SELECT c.category_name, COUNT(p.id) AS product_count
+                     FROM categories c
+                     LEFT JOIN products p ON c.id = p.category_id
+                     GROUP BY c.id, c.category_name
                      ORDER BY c.category_name";
 $categories_result = mysqli_query($conn, $categories_query);
 
@@ -206,7 +206,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 </div>
             </div>
         </div>
-        
+
         <!-- POS SYSTEM FOR REGULAR USERS -->
         <div class="pos-container">
             <div class="pos-products">
@@ -215,79 +215,58 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         <i class="fas fa-search"></i>
                         <input type="text" id="posSearchInput" placeholder="Search products..." onkeyup="searchPOSProducts()">
                     </div>
-                    
-                    <select id="sortBy" class="pos-sort" onchange="sortPOSProducts()">
-                        <option value="">Sort By</option>
-                        <option value="name">Name</option>
-                        <option value="price">Price</option>
-                        <option value="stock">Stock</option>
-                        <option value="category">Category</option>
-                    </select>
                 </div>
                 
                 <div class="category-filter">
-                    <button class="category-btn active" onclick="filterCategory('all')">All</button>
+                    <button type="button" class="category-btn active" onclick="filterCategory('all', this)">All</button>
                     <?php 
                     mysqli_data_seek($categories_result, 0);
                     while ($cat = mysqli_fetch_assoc($categories_result)): 
+                        $rawCategory = trim((string)($cat['category_name'] ?? ''));
+                        $categoryLabel = $rawCategory !== '' ? $rawCategory : 'Uncategorized';
                     ?>
-                        <button class="category-btn" onclick="filterCategory('<?php echo htmlspecialchars($cat['category_name']); ?>')">
-                            <?php echo strtoupper(htmlspecialchars($cat['category_name'])); ?>
+                        <button type="button" class="category-btn" onclick='filterCategory(<?php echo json_encode($categoryLabel); ?>, this)' data-product-count="<?php echo (int)($cat['product_count'] ?? 0); ?>">
+                            <?php echo strtoupper(htmlspecialchars($categoryLabel)); ?>
                         </button>
                     <?php endwhile; ?>
                 </div>
                 
-                <div class="products-table-wrapper">
-                    <table class="pos-products-table" id="posProductsTable">
-                        <thead>
-                            <tr>
-                                <th>ITEM</th>
-                                <th>CATEGORY</th>
-                                <th>PRICE</th>
-                                <th>ON-HAND QUANTITY</th>
-                                <th>STATUS</th>
-                                <th>ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            mysqli_data_seek($products_result, 0);
-                            while ($product = mysqli_fetch_assoc($products_result)): 
-                                $isOutOfStock = $product['stock'] <= 0;
-                                $category = $product['category_name'] ?? 'Uncategorized';
-                            ?>
-                                <tr class="product-row <?php echo $isOutOfStock ? 'out-of-stock' : ''; ?>" 
-                                    data-category="<?php echo htmlspecialchars($category); ?>"
-                                    data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
-                                    data-price="<?php echo $product['price']; ?>"
-                                    data-stock="<?php echo $product['stock']; ?>">
-                                    <td class="item-name"><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                    <td class="item-category"><?php echo htmlspecialchars($category); ?></td>
-                                    <td class="item-price">₱<?php echo number_format($product['price'], 2); ?></td>
-                                    <td class="item-quantity <?php echo $product['stock'] < 10 && $product['stock'] > 0 ? 'low-stock' : ''; ?>">
-                                        <?php echo $product['stock']; ?>
-                                    </td>
-                                    <td class="item-status">
-                                        <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $product['status'])); ?>">
-                                            <?php echo $product['status']; ?>
-                                        </span>
-                                    </td>
-                                    <td class="item-action">
-                                        <?php if (!$isOutOfStock): ?>
-                                            <button class="btn-add-cart" onclick="addToCart(<?php echo $product['id']; ?>, '<?php echo addslashes($product['product_name']); ?>', <?php echo $product['price']; ?>, '<?php echo htmlspecialchars($category); ?>')">
-                                                <i class="fas fa-cart-plus"></i> Add
-                                            </button>
-                                        <?php else: ?>
-                                            <button class="btn-add-cart disabled" disabled>
-                                                <i class="fas fa-ban"></i> N/A
-                                            </button>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
+                <div class="products-grid" id="productsGrid">
+                    <?php 
+                    mysqli_data_seek($products_result, 0);
+                    while ($product = mysqli_fetch_assoc($products_result)): 
+                        $isOutOfStock = $product['stock'] <= 0;
+                        $category = $product['category_name'] ?? 'Uncategorized';
+                    ?>
+                        <div class="product-card <?php echo $isOutOfStock ? 'out-of-stock' : ''; ?>"
+                             data-id="<?php echo (int)$product['id']; ?>"
+                             data-category="<?php echo htmlspecialchars($category); ?>"
+                             data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
+                             data-price="<?php echo (float)$product['price']; ?>"
+                                data-stock="<?php echo (int)$product['stock']; ?>"
+                             data-clickable="<?php echo $isOutOfStock ? '0' : '1'; ?>">
+                            <div class="product-icon">
+                                <?php
+                                $icons = [
+                                    'Tools' => '<i class="fas fa-hammer"></i>',
+                                    'Paint' => '<i class="fas fa-paint-roller"></i>',
+                                    'Electrical' => '<i class="fas fa-bolt"></i>',
+                                    'Plumbing' => '<i class="fas fa-wrench"></i>',
+                                    'Fasteners' => '<i class="fas fa-screwdriver"></i>'
+                                ];
+                                echo $icons[$category] ?? '<i class="fas fa-box"></i>';
+                                ?>
+                            </div>
+                            <div class="product-name"><?php echo htmlspecialchars($product['product_name']); ?></div>
+                            <div class="product-category"><?php echo htmlspecialchars($category); ?></div>
+                            <div class="product-price">₱<?php echo number_format($product['price'], 2); ?></div>
+                            <div class="product-stock <?php echo $product['stock'] < 10 ? 'low' : ''; ?>">
+                                <?php echo $isOutOfStock ? 'Out of Stock' : $product['stock'] . ' in stock'; ?>
+                            </div>
+                        </div>
+                    <?php endwhile; ?>
                 </div>
+                <div class="no-products-message" id="noProductsMessage" style="display: none;">No Products Available.</div>
             </div>
             
             <div class="pos-cart">
@@ -323,6 +302,14 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                             <i class="fas fa-mobile-alt"></i> GCash
                         </button>
                     </div>
+                    <div class="cash-payment-details" id="cashPaymentDetails" style="display: none;">
+                        <label class="cash-label" for="cashAmount">Cash Received:</label>
+                        <input type="number" id="cashAmount" min="0" step="0.01" placeholder="Enter amount" oninput="updateCashChange()">
+                        <div class="cash-change-row">
+                            <span>Change:</span>
+                            <span id="cashChange">₱0.00</span>
+                        </div>
+                    </div>
                 </div>
                 <button class="checkout-btn" id="checkoutBtn" onclick="checkout()" disabled>
                     Checkout
@@ -343,52 +330,96 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         <option value="stock">Stock</option>
                         <option value="category">Category</option>
                     </select>
+                    <div class="admin-view-toggle">
+                        <button type="button" class="admin-view-btn active" id="tableViewBtn" onclick="setAdminView('table')">
+                            <i class="fas fa-table"></i> Table
+                        </button>
+                        <button type="button" class="admin-view-btn" id="cardViewBtn" onclick="setAdminView('card')">
+                            <i class="fas fa-th-large"></i> Cards
+                        </button>
+                    </div>
                 </div>
 
                 <div class="products-table-container">
-                    <h2>Products Table</h2>
-                    <table class="products-table" id="productsTable">
-                        <thead>
-                            <tr>
-                                <th>Product ID</th>
-                                <th>Product Name</th>
-                                <th>Category</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th>Stock</th>
-                                <th colspan="2">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="admin-table-view" id="adminTableView">
+                        <h2>Products Table</h2>
+                        <table class="products-table" id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>Product ID</th>
+                                    <th>Product Name</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Stock</th>
+                                    <th colspan="2">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                mysqli_data_seek($products_result, 0);
+                                if (mysqli_num_rows($products_result) > 0): 
+                                ?>
+                                    <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
+                                        <tr>
+                                            <td><?php echo $product['id']; ?></td>
+                                            <td><?php echo htmlspecialchars($product['product_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
+                                            <td>₱<?php echo number_format($product['price'], 2); ?></td>
+                                            <td><?php echo $product['status']; ?></td>
+                                            <td><?php echo $product['stock']; ?></td>
+                                            <td>
+                                                <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
+                                            </td>
+                                            <td>
+                                                <a href="?delete_id=<?php echo $product['id']; ?>" 
+                                                   onclick="return confirm('Are you sure you want to delete this product?')" 
+                                                   class="btn-delete"><i class="fas fa-trash"></i></a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="8" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="admin-card-view" id="adminCardView" style="display: none;">
+                        <h2>Products Cards</h2>
+                        <div class="admin-products-grid" id="adminProductsGrid">
                             <?php 
                             mysqli_data_seek($products_result, 0);
-                            if (mysqli_num_rows($products_result) > 0): 
+                            if (mysqli_num_rows($products_result) > 0):
+                                while ($product = mysqli_fetch_assoc($products_result)):
+                                    $adminCategory = $product['category_name'] ?? 'N/A';
                             ?>
-                                <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
-                                    <tr>
-                                        <td><?php echo $product['id']; ?></td>
-                                        <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
-                                        <td>₱<?php echo number_format($product['price'], 2); ?></td>
-                                        <td><?php echo $product['status']; ?></td>
-                                        <td><?php echo $product['stock']; ?></td>
-                                        <td>
-                                            <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
-                                        </td>
-                                        <td>
-                                            <a href="?delete_id=<?php echo $product['id']; ?>" 
-                                               onclick="return confirm('Are you sure you want to delete this product?')" 
-                                               class="btn-delete"><i class="fas fa-trash"></i></a>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
-                                </tr>
+                                <div class="admin-product-card"
+                                     data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
+                                     data-category="<?php echo htmlspecialchars($adminCategory); ?>"
+                                     data-price="<?php echo (float)$product['price']; ?>"
+                                     data-stock="<?php echo (int)$product['stock']; ?>">
+                                    <div class="admin-card-title"><?php echo htmlspecialchars($product['product_name']); ?></div>
+                                    <div class="admin-card-meta">ID: <?php echo $product['id']; ?></div>
+                                    <div class="admin-card-meta">Category: <?php echo htmlspecialchars($adminCategory); ?></div>
+                                    <div class="admin-card-price">₱<?php echo number_format($product['price'], 2); ?></div>
+                                    <div class="admin-card-stock">Stock: <?php echo (int)$product['stock']; ?></div>
+                                    <div class="admin-card-status"><?php echo htmlspecialchars($product['status']); ?></div>
+                                    <div class="admin-card-actions">
+                                        <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
+                                        <a href="?delete_id=<?php echo $product['id']; ?>" onclick="return confirm('Are you sure you want to delete this product?')" class="btn-delete"><i class="fas fa-trash"></i></a>
+                                    </div>
+                                </div>
+                            <?php
+                                endwhile;
+                            else:
+                            ?>
+                                <div style="text-align: center; color: #777;">No products found. <a href="add_product.php">Add a product</a></div>
                             <?php endif; ?>
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -434,25 +465,28 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
     <?php if ($isRegularUser): ?>
     <script>
+        let activeCategory = 'all';
         function updateDateTime() {
             const now = new Date();
-            const options = { 
-                weekday: 'short', 
-                year: 'numeric', 
-                month: 'short', 
+            const options = {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
             };
-            document.getElementById('currentDateTime').textContent = now.toLocaleString('en-US', options);
+            const dateTimeEl = document.getElementById('currentDateTime');
+            if (dateTimeEl) {
+                dateTimeEl.textContent = now.toLocaleString('en-US', options);
+            }
         }
-        
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
 
         function toggleTransactionHistory() {
             const overlay = document.getElementById('transactionHistoryOverlay');
+            if (!overlay) return;
+
             if (overlay.style.display === 'none' || overlay.style.display === '') {
                 overlay.style.display = 'flex';
             } else {
@@ -462,6 +496,24 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
         let cart = [];
         let selectedPaymentMethod = null;
+
+        function normalizeCategory(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function initializePOSCardClicks() {
+            const cards = document.querySelectorAll('.product-card[data-clickable="1"]');
+            cards.forEach(card => {
+                card.addEventListener('click', () => {
+                    const id = parseInt(card.dataset.id, 10);
+                    const name = card.dataset.name;
+                    const price = parseFloat(card.dataset.price);
+                    const category = card.dataset.category;
+                    const stock = parseInt(card.dataset.stock, 10);
+                    addToCart(id, name, price, category, stock);
+                });
+            });
+        }
 
         function selectPaymentMethod(method) {
             selectedPaymentMethod = method;
@@ -473,12 +525,43 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     btn.classList.remove('selected');
                 }
             });
+
+            const cashDetails = document.getElementById('cashPaymentDetails');
+            if (cashDetails) {
+                cashDetails.style.display = method === 'Cash' ? 'block' : 'none';
+            }
+
+            updateCashChange();
         }
 
-        function addToCart(id, name, price, category) {
+        function updateCashChange() {
+            const cashAmountInput = document.getElementById('cashAmount');
+            const cashChange = document.getElementById('cashChange');
+
+            if (!cashAmountInput || !cashChange) return;
+
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const cashReceived = parseFloat(cashAmountInput.value || '0');
+            const change = cashReceived - total;
+
+            if (change >= 0) {
+                cashChange.textContent = '₱' + change.toFixed(2);
+                cashChange.classList.remove('insufficient');
+            } else {
+                cashChange.textContent = '₱0.00';
+                cashChange.classList.add('insufficient');
+            }
+        }
+
+        function addToCart(id, name, price, category, stock) {
+            const maxStock = Number.isFinite(stock) ? stock : parseInt(stock, 10);
             const existingItem = cart.find(item => item.id === id);
             
             if (existingItem) {
+                if (existingItem.quantity >= existingItem.stock) {
+                    alert('Cannot add more. Stock limit reached for this product.');
+                    return;
+                }
                 existingItem.quantity++;
             } else {
                 const icons = {
@@ -493,6 +576,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     name: name,
                     price: price,
                     quantity: 1,
+                    stock: maxStock,
                     icon: icons[category] || '<i class="fas fa-box"></i>'
                 });
             }
@@ -503,6 +587,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         function updateQuantity(id, change) {
             const item = cart.find(item => item.id === id);
             if (item) {
+                if (change > 0 && item.quantity >= item.stock) {
+                    alert('Cannot add more. Stock limit reached for this product.');
+                    return;
+                }
                 item.quantity += change;
                 if (item.quantity <= 0) {
                     removeFromCart(id);
@@ -522,6 +610,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const cartSummary = document.getElementById('cartSummary');
             const checkoutBtn = document.getElementById('checkoutBtn');
             const paymentSelector = document.getElementById('paymentMethodSelector');
+            const cashDetails = document.getElementById('cashPaymentDetails');
+            const cashAmountInput = document.getElementById('cashAmount');
+            const cashChange = document.getElementById('cashChange');
             
             if (cart.length === 0) {
                 cartItemsContainer.innerHTML = `
@@ -531,9 +622,15 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     </div>
                 `;
                 cartSummary.style.display = 'none';
-                paymentSelector.style.display = 'none';
                 checkoutBtn.disabled = true;
                 selectedPaymentMethod = null;
+
+                if (cashDetails) cashDetails.style.display = 'none';
+                if (cashAmountInput) cashAmountInput.value = '';
+                if (cashChange) {
+                    cashChange.textContent = '₱0.00';
+                    cashChange.classList.remove('insufficient');
+                }
             } else {
                 let html = '';
                 let subtotal = 0;
@@ -563,95 +660,87 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
                 document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
                 cartSummary.style.display = 'block';
-                paymentSelector.style.display = 'block';
                 checkoutBtn.disabled = false;
+
+                updateCashChange();
             }
         }
 
-        function searchPOSProducts() {
+        function applyPOSFilters() {
             const input = document.getElementById('posSearchInput');
             const filter = input.value.toLowerCase();
-            const rows = document.querySelectorAll('.product-row');
+            const cards = document.querySelectorAll('.product-card');
+            const noProductsMessage = document.getElementById('noProductsMessage');
+            let visibleCount = 0;
             
-            rows.forEach(row => {
-                const itemName = row.querySelector('.item-name').textContent.toLowerCase();
-                const itemCategory = row.querySelector('.item-category').textContent.toLowerCase();
+            cards.forEach(card => {
+                const itemName = card.querySelector('.product-name').textContent.toLowerCase();
+                const itemCategory = card.querySelector('.product-category').textContent.toLowerCase();
+                const categoryMatch = activeCategory === 'all' || normalizeCategory(card.dataset.category) === activeCategory;
+                const searchMatch = itemName.includes(filter) || itemCategory.includes(filter);
                 
-                if (itemName.includes(filter) || itemCategory.includes(filter)) {
-                    row.style.display = '';
+                if (categoryMatch && searchMatch) {
+                    card.style.display = '';
+                    visibleCount++;
                 } else {
-                    row.style.display = 'none';
+                    card.style.display = 'none';
                 }
             });
+
+            if (noProductsMessage) {
+                if (visibleCount === 0) {
+                    noProductsMessage.textContent = activeCategory === 'all'
+                        ? 'No Products Available.'
+                        : 'No Products Available in this category.';
+                    noProductsMessage.style.display = 'block';
+                } else {
+                    noProductsMessage.style.display = 'none';
+                }
+            }
         }
 
-        function filterCategory(category) {
-            const rows = document.querySelectorAll('.product-row');
+        function filterCategory(category, element) {
             const buttons = document.querySelectorAll('.category-btn');
             
             buttons.forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            rows.forEach(row => {
-                const rowCategory = row.dataset.category;
-                if (category === 'all' || rowCategory === category) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-
-        function sortPOSProducts() {
-            const sortBy = document.getElementById('sortBy').value;
-            const tbody = document.querySelector('.pos-products-table tbody');
-            const rows = Array.from(tbody.querySelectorAll('.product-row'));
-            
-            if (!sortBy) return;
-            
-            rows.sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(sortBy) {
-                    case 'name':
-                        aVal = a.dataset.name.toLowerCase();
-                        bVal = b.dataset.name.toLowerCase();
-                        return aVal.localeCompare(bVal);
-                    case 'price':
-                        aVal = parseFloat(a.dataset.price);
-                        bVal = parseFloat(b.dataset.price);
-                        return aVal - bVal;
-                    case 'stock':
-                        aVal = parseInt(a.dataset.stock);
-                        bVal = parseInt(b.dataset.stock);
-                        return bVal - aVal;
-                    case 'category':
-                        aVal = a.dataset.category.toLowerCase();
-                        bVal = b.dataset.category.toLowerCase();
-                        return aVal.localeCompare(bVal);
-                    default:
-                        return 0;
-                }
-            });
-            
-            rows.forEach(row => tbody.appendChild(row));
+            element.classList.add('active');
+            activeCategory = category === 'all' ? 'all' : normalizeCategory(category);
+            searchPOSProducts();
         }
 
         function checkout() {
             if (cart.length === 0) return;
             
-            if (!selectedPaymentMethod) {
-                alert('Please select a payment method before checking out.');
-                return;
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            let cashReceived = null;
+            let change = null;
+
+            if (selectedPaymentMethod === 'Cash') {
+                const cashAmountInput = document.getElementById('cashAmount');
+                cashReceived = parseFloat(cashAmountInput?.value || '0');
+
+                if (!cashReceived || cashReceived < total) {
+                    alert('Cash received must be greater than or equal to the total amount.');
+                    return;
+                }
+
+                change = cashReceived - total;
             }
             
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            
-            if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}\nPayment Method: ${selectedPaymentMethod}`)) {
+            const cashDetails = selectedPaymentMethod === 'Cash'
+                ? `\nCash Received: ₱${cashReceived.toFixed(2)}\nChange: ₱${change.toFixed(2)}`
+                : '';
+
+            if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}\nPayment Method: ${selectedPaymentMethod}${cashDetails}`)) {
                 const formData = new FormData();
                 formData.append('cart', JSON.stringify(cart));
                 formData.append('total', total);
                 formData.append('payment_method', selectedPaymentMethod);
+
+                if (selectedPaymentMethod === 'Cash') {
+                    formData.append('cash_received', cashReceived.toFixed(2));
+                    formData.append('cash_change', change.toFixed(2));
+                }
                 
                 fetch('../backend/process_sale.php', {
                     method: 'POST',
@@ -662,7 +751,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     if (data.success) {
                         alert('Sale completed successfully!');
                         cart = [];
-                        selectedPaymentMethod = null;
                         updateCart();
                         setTimeout(() => location.reload(), 500);
                     } else {
@@ -680,6 +768,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');
         }
+
+        initializePOSCardClicks();
+        searchPOSProducts();
     </script>
     <?php else: ?>
     <script src="dashboard.js"></script>
