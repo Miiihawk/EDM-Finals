@@ -260,12 +260,45 @@ body {
 
 .admin-card-status {
   width: fit-content;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #4751a8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.status-pill,
+.admin-card-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-available {
+  background: #dff3e7;
+  color: #2d8a57;
+  border-color: #b7e1c6;
+}
+
+.status-out-of-stock {
+  background: #f7e8ec;
+  color: #b67784;
+  border-color: #eccfd8;
+}
+
+.stock-value {
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+.stock-value.low-stock {
+  color: #e74c3c;
 }
 
 .admin-card-actions {
