@@ -714,25 +714,6 @@
   color: #ff4757;
 }
 
-.customer-phone-row {
-  margin-top: 12px;
-}
-
-#customerPhone {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #dce4ef;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #2c3e50;
-}
-
-#customerPhone:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-}
-
 .order-modal {
   position: fixed;
   inset: 0;
@@ -779,6 +760,75 @@
   gap: 10px;
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.customer-picker-card {
+  width: min(760px, 96vw);
+}
+
+.customer-picker-search {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.customer-picker-search:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.customer-picker-list {
+  margin-top: 10px;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  background: #f9fbff;
+}
+
+.customer-picker-item {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #e8eef5;
+  background: #fff;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customer-picker-item:last-child {
+  border-bottom: none;
+}
+
+.customer-picker-item .name {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.customer-picker-item .meta {
+  color: #6a7890;
+  font-size: 12px;
+}
+
+.customer-picker-item:hover {
+  background: #f2f6ff;
+}
+
+.customer-picker-item.active {
+  background: #e8efff;
+}
+
+.customer-picker-empty {
+  padding: 16px;
+  text-align: center;
+  color: #6a7890;
+  font-size: 14px;
 }
 
 .summary-actions {

@@ -6,6 +6,8 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+$isRegularUser = ($_SESSION['role'] != 'admin');
+
 $products_query = "SELECT p.*, c.category_name 
                    FROM products p 
                    LEFT JOIN categories c ON p.category_id = c.id 
@@ -25,6 +27,20 @@ $user_orders_query = "SELECT o.id, o.tracking_no, o.payment_method, o.total_amou
                       ORDER BY o.order_date DESC
                       LIMIT 20";
 $user_orders_result = mysqli_query($conn, $user_orders_query);
+
+$registered_customers = [];
+if ($isRegularUser) {
+    $customers_query = "SELECT id, full_name, phone, email
+                        FROM customers
+                        WHERE phone <> 'WALKIN-DEFAULT'
+                        ORDER BY full_name ASC";
+    $customers_result = mysqli_query($conn, $customers_query);
+    if ($customers_result) {
+        while ($customer = mysqli_fetch_assoc($customers_result)) {
+            $registered_customers[] = $customer;
+        }
+    }
+}
 
 function getOrderItems($conn, $order_id) {
     $items_query = "SELECT oi.quantity, oi.subtotal, p.product_name
@@ -113,8 +129,6 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     header('Location: dashboard.php');
     exit();
 }
-
-$isRegularUser = ($_SESSION['role'] != 'admin');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -342,10 +356,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                                 <span id="cashChange">₱0.00</span>
                             </div>
                         </div>
-                        <div class="customer-phone-row">
-                            <label class="cash-label" for="customerPhone">Customer Phone for Official Receipt:</label>
-                            <input type="text" id="customerPhone" placeholder="Enter customer phone number">
-                        </div>
                     </div>
                     <div class="checkout-actions">
                         <button class="checkout-btn" id="officialReceiptBtn" onclick="checkoutWithReceipt()" disabled>
@@ -359,10 +369,24 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             </div>
         </div>
 
+        <div class="order-modal" id="selectCustomerModal" style="display: none;" onclick="if(event.target===this){closeCustomerPickerModal();}">
+            <div class="order-modal-card customer-picker-card">
+                <h3>Select Customer for Official Receipt</h3>
+                <p class="modal-note">Choose a registered customer or add a new one.</p>
+                <input type="text" id="customerPickerSearch" class="customer-picker-search" placeholder="Search by name, phone, or email" oninput="filterCustomerPickerList()">
+                <div class="customer-picker-list" id="customerPickerList"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="openCreateCustomerFromPicker()"><i class="fas fa-plus"></i> Add New Customer</button>
+                    <button type="button" class="btn-secondary" onclick="closeCustomerPickerModal()">Cancel</button>
+                    <button type="button" class="btn-primary" id="proceedReceiptBtn" onclick="proceedOfficialReceiptCheckout()" disabled>Save & Print Receipt</button>
+                </div>
+            </div>
+        </div>
+
         <div class="order-modal" id="createCustomerModal" style="display: none;" onclick="if(event.target===this){closeCreateCustomerModal();}">
             <div class="order-modal-card">
                 <h3>Create Customer</h3>
-                <p class="modal-note">Phone number is not in the customer record.</p>
+                <p class="modal-note">Add customer details to continue with official receipt.</p>
                 <div class="modal-form-grid">
                     <input type="text" id="newCustomerName" placeholder="Full Name">
                     <input type="text" id="newCustomerPhone" placeholder="Phone">
@@ -678,6 +702,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         let savedOrder = null;
         let isCompletingOrder = false;
         let collectCustomerDetails = false;
+        let customerRegistry = <?php echo json_encode($registered_customers, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
         function normalizeCategory(value) {
             return String(value || '').trim().toLowerCase();
@@ -729,6 +754,87 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
             if (quickProcessBtn) {
                 quickProcessBtn.disabled = isDisabled;
+            }
+        }
+
+        function renderCustomerPickerList(searchTerm = '') {
+            const listEl = document.getElementById('customerPickerList');
+            const proceedBtn = document.getElementById('proceedReceiptBtn');
+            if (!listEl) return;
+
+            const filter = String(searchTerm || '').trim().toLowerCase();
+            const filtered = customerRegistry.filter(customer => {
+                const fullName = String(customer.full_name || '').toLowerCase();
+                const phone = String(customer.phone || '').toLowerCase();
+                const email = String(customer.email || '').toLowerCase();
+                return !filter || fullName.includes(filter) || phone.includes(filter) || email.includes(filter);
+            });
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="customer-picker-empty">No customers found. Use Add New Customer.</div>';
+                if (proceedBtn) proceedBtn.disabled = !selectedCustomer?.id;
+                return;
+            }
+
+            const rows = filtered.map(customer => {
+                const isActive = selectedCustomer && Number(selectedCustomer.id) === Number(customer.id);
+                return `
+                    <button type="button" class="customer-picker-item ${isActive ? 'active' : ''}" onclick="selectCustomerFromPicker(${Number(customer.id)})">
+                        <span class="name">${escapeHtml(customer.full_name || 'N/A')}</span>
+                        <span class="meta">${escapeHtml(customer.phone || 'N/A')} · ${escapeHtml(customer.email || 'N/A')}</span>
+                    </button>
+                `;
+            }).join('');
+
+            listEl.innerHTML = rows;
+            if (proceedBtn) proceedBtn.disabled = !selectedCustomer?.id;
+        }
+
+        function openCustomerPickerModal() {
+            const modal = document.getElementById('selectCustomerModal');
+            const searchInput = document.getElementById('customerPickerSearch');
+            if (searchInput) searchInput.value = '';
+            renderCustomerPickerList('');
+            if (modal) modal.style.display = 'flex';
+            if (searchInput) searchInput.focus();
+        }
+
+        function closeCustomerPickerModal() {
+            const modal = document.getElementById('selectCustomerModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function filterCustomerPickerList() {
+            const searchInput = document.getElementById('customerPickerSearch');
+            renderCustomerPickerList(searchInput?.value || '');
+        }
+
+        function selectCustomerFromPicker(customerId) {
+            const customer = customerRegistry.find(item => Number(item.id) === Number(customerId));
+            if (!customer) return;
+            selectedCustomer = customer;
+            renderCustomerPickerList(document.getElementById('customerPickerSearch')?.value || '');
+        }
+
+        function openCreateCustomerFromPicker() {
+            closeCustomerPickerModal();
+            const searchText = (document.getElementById('customerPickerSearch')?.value || '').trim();
+            document.getElementById('newCustomerName').value = '';
+            document.getElementById('newCustomerEmail').value = '';
+            document.getElementById('newCustomerPhone').value = /^\+?[0-9\-\s]{6,20}$/.test(searchText) ? searchText : '';
+            document.getElementById('createCustomerModal').style.display = 'flex';
+        }
+
+        async function proceedOfficialReceiptCheckout() {
+            if (!selectedCustomer?.id) {
+                alert('Please select a customer for official receipt.');
+                return;
+            }
+
+            closeCustomerPickerModal();
+            const isSaved = await saveOrder(false);
+            if (isSaved) {
+                printOrderSummary();
             }
         }
 
@@ -814,6 +920,12 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         function closeCreateCustomerModal() {
             const modal = document.getElementById('createCustomerModal');
             if (modal) modal.style.display = 'none';
+            const nameInput = document.getElementById('newCustomerName');
+            const phoneInput = document.getElementById('newCustomerPhone');
+            const emailInput = document.getElementById('newCustomerEmail');
+            if (nameInput) nameInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            if (emailInput) emailInput.value = '';
         }
 
         function closeOrderSummary() {
@@ -850,8 +962,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     cashChange.textContent = '₱0.00';
                     cashChange.classList.remove('insufficient');
                 }
-                const customerPhoneInput = document.getElementById('customerPhone');
-                if (customerPhoneInput) customerPhoneInput.value = '';
                 selectedCustomer = null;
                 savedOrder = null;
                 updateCheckoutButtons();
@@ -941,20 +1051,11 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             searchPOSProducts();
         }
 
-        function validateCheckout(requireCustomerDetails) {
+        function validateCheckout() {
             if (cart.length === 0) return;
             if (!selectedPaymentMethod) {
                 alert('Please select a payment method.');
                 return false;
-            }
-
-            if (requireCustomerDetails) {
-                const customerPhoneInput = document.getElementById('customerPhone');
-                const phone = (customerPhoneInput?.value || '').trim();
-                if (!phone) {
-                    alert('Please enter the customer phone number for the official receipt.');
-                    return false;
-                }
             }
 
             if (selectedPaymentMethod === 'Cash') {
@@ -971,78 +1072,23 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         }
 
         async function checkoutWithReceipt() {
-            if (!validateCheckout(true)) {
+            if (!validateCheckout()) {
                 return;
             }
 
             collectCustomerDetails = true;
-            const customerPhoneInput = document.getElementById('customerPhone');
-            const phone = (customerPhoneInput?.value || '').trim();
-
-            try {
-                const response = await fetch(`../backend/customer_lookup.php?phone=${encodeURIComponent(phone)}`);
-                const data = await response.json();
-                if (!data.success) {
-                    alert(data.error || 'Unable to validate customer phone.');
-                    return;
-                }
-
-                if (data.exists) {
-                    selectedCustomer = data.customer;
-                    await saveOrder(false);
-                    return;
-                }
-
-                document.getElementById('newCustomerPhone').value = phone;
-                document.getElementById('createCustomerModal').style.display = 'flex';
-            } catch (error) {
-                console.error(error);
-                alert('Error checking customer phone.');
-            }
+            selectedCustomer = null;
+            openCustomerPickerModal();
         }
 
         async function checkoutWithoutReceipt() {
-            if (!validateCheckout(false)) {
+            if (!validateCheckout()) {
                 return;
             }
 
             collectCustomerDetails = false;
             selectedCustomer = null;
             await saveOrder(false);
-        }
-
-        async function checkout() {
-            if (!validateCheckout(true)) {
-                return;
-            }
-
-            const customerPhoneInput = document.getElementById('customerPhone');
-            const phone = (customerPhoneInput?.value || '').trim();
-            if (!phone) {
-                alert('Please enter the customer phone number.');
-                return;
-            }
-
-            try {
-                const response = await fetch(`../backend/customer_lookup.php?phone=${encodeURIComponent(phone)}`);
-                const data = await response.json();
-                if (!data.success) {
-                    alert(data.error || 'Unable to validate customer phone.');
-                    return;
-                }
-
-                if (data.exists) {
-                    selectedCustomer = data.customer;
-                    await saveOrder(false);
-                    return;
-                }
-
-                document.getElementById('newCustomerPhone').value = phone;
-                document.getElementById('createCustomerModal').style.display = 'flex';
-            } catch (error) {
-                console.error(error);
-                alert('Error checking customer phone.');
-            }
         }
 
         async function createCustomerAndContinue() {
@@ -1072,8 +1118,15 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 }
 
                 selectedCustomer = data.customer;
+                customerRegistry.push(data.customer);
                 closeCreateCustomerModal();
-                await saveOrder(false);
+
+                if (collectCustomerDetails) {
+                    const isSaved = await saveOrder(false);
+                    if (isSaved) {
+                        printOrderSummary();
+                    }
+                }
             } catch (error) {
                 console.error(error);
                 alert('Error creating customer.');
