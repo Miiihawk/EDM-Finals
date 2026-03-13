@@ -45,16 +45,6 @@ $createProductsTable = "CREATE TABLE IF NOT EXISTS products (
     ON DELETE CASCADE
 ) ENGINE=InnoDB";
 
-// LOGS TABLE
-$createLogsTable = "CREATE TABLE IF NOT EXISTS logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_name VARCHAR(100) NOT NULL,
-    quantity INT NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    username VARCHAR(50) NOT NULL,
-    log_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB";
-
 // SALES TABLE
 $createSalesTable = "CREATE TABLE IF NOT EXISTS sales (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,7 +88,6 @@ $createInventoryHistoryTable = "CREATE TABLE IF NOT EXISTS inventory_history (
 mysqli_query($conn, $createUsersTable);
 mysqli_query($conn, $createCategoriesTable);
 mysqli_query($conn, $createProductsTable);
-mysqli_query($conn, $createLogsTable);
 mysqli_query($conn, $createSalesTable);
 mysqli_query($conn, $createSaleItemsTable);
 mysqli_query($conn, $createInventoryHistoryTable);

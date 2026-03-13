@@ -35,15 +35,7 @@ function getSaleItems($conn, $sale_id) {
     return mysqli_query($conn, $items_query);
 }
 
-$admin_inventory_logs_query = "(SELECT 
-                                    l.product_name,
-                                    l.quantity as change_quantity,
-                                    l.username,
-                                    l.log_time as timestamp,
-                                    l.action as reason
-                                FROM logs l)
-                                UNION ALL
-                                (SELECT 
+$admin_inventory_logs_query = "SELECT 
                                     p.product_name,
                                     ih.change_quantity,
                                     u.username,
@@ -52,8 +44,8 @@ $admin_inventory_logs_query = "(SELECT
                                 FROM inventory_history ih
                                 LEFT JOIN products p ON ih.product_id = p.id
                                 LEFT JOIN users u ON ih.user_id = u.id
-                                WHERE ih.reason != 'Product Updated')
-                                ORDER BY timestamp DESC
+                                WHERE ih.change_quantity != 0
+                                ORDER BY ih.created_at DESC
                                 LIMIT 100";
 $admin_inventory_logs_result = mysqli_query($conn, $admin_inventory_logs_query);
 
@@ -791,6 +783,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             nav.classList.toggle('active');
         }
 
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
         initializePOSCardClicks();
         searchPOSProducts();
     </script>
