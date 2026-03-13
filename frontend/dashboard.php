@@ -96,7 +96,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 <body>
     <div class="sidebar <?php echo $isRegularUser ? 'pos-sidebar' : ''; ?>">
         <div class="logo">
-            <img src="images/logo.jpg" alt="FixFlo Logo">
+            <img src="images/logo.jpg" alt="FixFlo Logo" class="app-logo">
         </div>
         <button class="menu-toggle" onclick="toggleMobileMenu()">
             <i class="fas fa-bars"></i>

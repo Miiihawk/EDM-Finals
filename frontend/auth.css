@@ -38,6 +38,12 @@ body {
   border-radius: 8px;
 }
 
+.app-logo {
+  width: 64px !important;
+  max-width: 64px !important;
+  height: auto !important;
+}
+
 .auth-box h1 {
   color: #667eea;
   font-size: 32px;
