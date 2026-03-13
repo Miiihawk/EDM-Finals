@@ -51,24 +51,29 @@ $check_admin = mysqli_query($conn, "SELECT id FROM users WHERE username='admin_u
 
 if (mysqli_num_rows($check_admin) == 0) {
 
-    $admin_hash = password_hash('admin123', PASSWORD_DEFAULT);
-    $user_hash = password_hash('user123', PASSWORD_DEFAULT);
+// Username: admin_user;
+// Password: admin123;
+$admin_hash = password_hash('admin123', PASSWORD_DEFAULT);
 
-    // Insert admin
-    $admin_sql = "INSERT INTO users (username, password, role) VALUES ('admin_user', ?, 'admin')";
-    $stmt = mysqli_prepare($conn, $admin_sql);
-    mysqli_stmt_bind_param($stmt, "s", $admin_hash);
-    mysqli_stmt_execute($stmt);
+// Username: regular_user;
+// Password: user123;
+$user_hash = password_hash('user123', PASSWORD_DEFAULT);
 
-    // Insert user
-    $user_sql = "INSERT INTO users (username, password, role) VALUES ('regular_user', ?, 'user')";
-    $stmt = mysqli_prepare($conn, $user_sql);
-    mysqli_stmt_bind_param($stmt, "s", $user_hash);
-    mysqli_stmt_execute($stmt);
+// Insert admin
+$admin_sql = "INSERT INTO users (username, password, first_name, last_name, role) VALUES ('admin_user', ?, 'Admin', 'User', 'admin')";
+$stmt = mysqli_prepare($conn, $admin_sql);
+mysqli_stmt_bind_param($stmt, "s", $admin_hash);
+mysqli_stmt_execute($stmt);
+
+// Insert user
+$user_sql = "INSERT INTO users (username, password, first_name, last_name, role) VALUES ('regular_user', ?, 'Regular', 'User', 'user')";
+$stmt = mysqli_prepare($conn, $user_sql);
+mysqli_stmt_bind_param($stmt, "s", $user_hash);
+mysqli_stmt_execute($stmt);
 
     echo "<script>console.log('Default accounts created successfully');</script>";
 } else {
-    echo "<script>console.log('Admin account already exists. Skipping account creation.');</script>";
+    echo "<script>console.log('Default accounts already exist. Skipping account creation.');</script>";
 }
 
 ?>

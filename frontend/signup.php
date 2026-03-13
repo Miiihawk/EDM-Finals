@@ -8,6 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = mysqli_real_escape_string($conn, $_POST['username']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
+    $first_name = $_POST['first_name'];   
+    $last_name = $_POST['last_name']; 
     // $role = mysqli_real_escape_string($conn, $_POST['role']);
     $role = 'user'; // Default role is user, you can change this based on your requirements
     
@@ -21,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $error = 'Username already exists';
         } else {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $insert_query = "INSERT INTO users (username, password, role) VALUES ('$username', '$hashed_password', '$role')";
+            $insert_query = "INSERT INTO users (username, password, first_name, last_name, role) VALUES ('$username', '$hashed_password', '$first_name', '$last_name', '$role')";
             
             if (mysqli_query($conn, $insert_query)) {
                 $success = 'Account created successfully! <a href="login.php">Login now</a>';
@@ -61,6 +63,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="form-group">
                     <label for="username">Username</label>
                     <input type="text" id="username" name="username" required>
+                </div>
+
+                 <div class="form-group">
+                    <label for="first_name">First Name</label>
+                    <input type="text" id="first_name" name="first_name" required>
+                </div>
+
+                 <div class="form-group">
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" required>
                 </div>
                 
                 <div class="form-group">
