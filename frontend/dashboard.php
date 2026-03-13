@@ -532,6 +532,11 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
 
             updateCashChange();
+
+            const checkoutBtn = document.getElementById('checkoutBtn');
+            if (checkoutBtn && cart.length > 0) {
+                checkoutBtn.disabled = false;
+            }
         }
 
         function updateCashChange() {
@@ -624,6 +629,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 cartSummary.style.display = 'none';
                 checkoutBtn.disabled = true;
                 selectedPaymentMethod = null;
+                if (paymentSelector) {
+                    paymentSelector.style.display = 'none';
+                }
+                document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('selected'));
 
                 if (cashDetails) cashDetails.style.display = 'none';
                 if (cashAmountInput) cashAmountInput.value = '';
@@ -660,10 +669,17 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
                 document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
                 cartSummary.style.display = 'block';
-                checkoutBtn.disabled = false;
+                if (paymentSelector) {
+                    paymentSelector.style.display = 'block';
+                }
+                checkoutBtn.disabled = !selectedPaymentMethod;
 
                 updateCashChange();
             }
+        }
+
+        function searchPOSProducts() {
+            applyPOSFilters();
         }
 
         function applyPOSFilters() {
@@ -703,13 +719,19 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const buttons = document.querySelectorAll('.category-btn');
             
             buttons.forEach(btn => btn.classList.remove('active'));
-            element.classList.add('active');
+            if (element) {
+                element.classList.add('active');
+            }
             activeCategory = category === 'all' ? 'all' : normalizeCategory(category);
             searchPOSProducts();
         }
 
         function checkout() {
             if (cart.length === 0) return;
+            if (!selectedPaymentMethod) {
+                alert('Please select a payment method.');
+                return;
+            }
             
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             let cashReceived = null;
