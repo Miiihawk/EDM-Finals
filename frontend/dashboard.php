@@ -19,19 +19,18 @@ $categories_query = "SELECT c.category_name, COUNT(p.id) AS product_count
                      ORDER BY c.category_name";
 $categories_result = mysqli_query($conn, $categories_query);
 
-$sales_query = "SELECT s.*, u.username 
-                FROM sales s 
-                LEFT JOIN users u ON s.user_id = u.id 
-                WHERE s.user_id = {$_SESSION['user_id']} 
-                ORDER BY s.created_at DESC 
-                LIMIT 20";
-$sales_result = mysqli_query($conn, $sales_query);
+$user_orders_query = "SELECT o.id, o.tracking_no, o.payment_method, o.total_amount, o.order_date
+                      FROM orders o
+                      WHERE o.created_by = {$_SESSION['user_id']}
+                      ORDER BY o.order_date DESC
+                      LIMIT 20";
+$user_orders_result = mysqli_query($conn, $user_orders_query);
 
-function getSaleItems($conn, $sale_id) {
-    $items_query = "SELECT si.*, p.product_name 
-                    FROM sale_items si 
-                    LEFT JOIN products p ON si.product_id = p.id 
-                    WHERE si.sale_id = $sale_id";
+function getOrderItems($conn, $order_id) {
+    $items_query = "SELECT oi.quantity, oi.subtotal, p.product_name
+                    FROM order_items oi
+                    LEFT JOIN products p ON oi.product_id = p.id
+                    WHERE oi.order_id = $order_id";
     return mysqli_query($conn, $items_query);
 }
 
@@ -48,6 +47,43 @@ $admin_inventory_logs_query = "SELECT
                                 ORDER BY ih.created_at DESC
                                 LIMIT 100";
 $admin_inventory_logs_result = mysqli_query($conn, $admin_inventory_logs_query);
+
+$admin_total_products = 0;
+$admin_total_categories = 0;
+$admin_total_customers = 0;
+$admin_today_orders = 0;
+$admin_orders_result = false;
+
+if ($_SESSION['role'] == 'admin') {
+    $countProductsResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM products");
+    if ($countProductsResult) {
+        $admin_total_products = (int)(mysqli_fetch_assoc($countProductsResult)['total'] ?? 0);
+    }
+
+    $countCategoriesResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM categories");
+    if ($countCategoriesResult) {
+        $admin_total_categories = (int)(mysqli_fetch_assoc($countCategoriesResult)['total'] ?? 0);
+    }
+
+    $countCustomersResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM customers");
+    if ($countCustomersResult) {
+        $admin_total_customers = (int)(mysqli_fetch_assoc($countCustomersResult)['total'] ?? 0);
+    }
+
+    $todayOrdersResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM orders WHERE DATE(order_date) = CURDATE()");
+    if ($todayOrdersResult) {
+        $admin_today_orders = (int)(mysqli_fetch_assoc($todayOrdersResult)['total'] ?? 0);
+    }
+
+    $admin_orders_query = "SELECT o.id, o.tracking_no, o.order_date, o.payment_method, o.total_amount,
+                                  c.full_name, c.phone, u.username AS created_by
+                           FROM orders o
+                           LEFT JOIN customers c ON o.customer_id = c.id
+                           LEFT JOIN users u ON o.created_by = u.id
+                           ORDER BY o.order_date DESC
+                           LIMIT 300";
+    $admin_orders_result = mysqli_query($conn, $admin_orders_query);
+}
 
 $grouped_logs = [];
 if ($admin_inventory_logs_result) {
@@ -88,9 +124,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
     <title><?php echo $isRegularUser ? 'POS System' : 'Dashboard'; ?></title>
     <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css">
     <?php if ($isRegularUser): ?>
-    <link rel="stylesheet" href="pos.css">
+    <link rel="stylesheet" href="css/pos.css">
     <?php endif; ?>
 </head>
 <body>
@@ -108,6 +144,9 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             <?php if ($_SESSION['role'] == 'admin'): ?>
             <a href="manage_users.php">
                 <span><i class="fas fa-users"></i></span> Manage Users
+            </a>
+            <a href="manage_customers.php">
+                <span><i class="fas fa-address-book"></i></span> Manage Customers
             </a>
             <a href="add_product.php">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products
@@ -145,27 +184,27 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
         <?php if ($isRegularUser): ?>
         <!-- TRANSACTION HISTORY OVERLAY -->
-        <div class="transaction-history-overlay" id="transactionHistoryOverlay" style="display: none;">
+        <div class="transaction-history-overlay" id="transactionHistoryOverlay" style="display: none;" onclick="if(event.target===this){toggleTransactionHistory();}">
             <div class="transaction-history-panel">
                 <div class="history-header">
-                    <h2><i class="fas fa-history"></i> Transaction History</h2>
+                    <h2><i class="fas fa-history"></i> Order History</h2>
                     <button class="btn-close-history" onclick="toggleTransactionHistory()">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
                 <div class="history-content">
-                    <?php if (mysqli_num_rows($sales_result) > 0): ?>
-                        <?php while ($sale = mysqli_fetch_assoc($sales_result)): ?>
+                    <?php if ($user_orders_result && mysqli_num_rows($user_orders_result) > 0): ?>
+                        <?php while ($order = mysqli_fetch_assoc($user_orders_result)): ?>
                             <div class="history-item">
                                 <div class="history-item-header">
-                                    <span class="history-id">#<?php echo $sale['id']; ?></span>
-                                    <span class="history-date"><?php echo date('M d, Y - h:i A', strtotime($sale['created_at'])); ?></span>
+                                    <span class="history-id"><?php echo htmlspecialchars($order['tracking_no']); ?></span>
+                                    <span class="history-date"><?php echo date('M d, Y - h:i A', strtotime($order['order_date'])); ?></span>
                                 </div>
                                 <div class="history-item-body">
                                     <div class="history-items-list">
                                         <?php 
-                                        $sale_items_result = getSaleItems($conn, $sale['id']);
-                                        while ($item = mysqli_fetch_assoc($sale_items_result)): 
+                                        $order_items_result = getOrderItems($conn, $order['id']);
+                                        while ($item = mysqli_fetch_assoc($order_items_result)): 
                                         ?>
                                             <div class="history-product-item">
                                                 <div class="history-product-info">
@@ -179,11 +218,11 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                                     <div class="history-summary">
                                         <div class="history-detail">
                                             <span class="detail-label">Total:</span>
-                                            <span class="detail-value total-amount">₱<?php echo number_format($sale['total_amount'], 2); ?></span>
+                                            <span class="detail-value total-amount">₱<?php echo number_format($order['total_amount'], 2); ?></span>
                                         </div>
                                         <div class="history-detail">
                                             <span class="detail-label">Payment:</span>
-                                            <span class="detail-value payment-method"><?php echo htmlspecialchars($sale['payment_method'] ?? 'N/A'); ?></span>
+                                            <span class="detail-value payment-method"><?php echo htmlspecialchars($order['payment_method'] ?? 'N/A'); ?></span>
                                         </div>
                                     </div>
                                 </div>
@@ -192,7 +231,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     <?php else: ?>
                         <div class="no-history">
                             <i class="fas fa-inbox"></i>
-                            <p>No transaction history yet</p>
+                            <p>No order history yet</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -271,41 +310,82 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         <p>Your cart is empty</p>
                     </div>
                 </div>
-                <div class="cart-summary" id="cartSummary" style="display: none;">
-                    <div class="summary-row">
-                        <span>Subtotal:</span>
-                        <span id="subtotal">₱0.00</span>
-                    </div>
-                    <div class="summary-row total">
-                        <span>Total:</span>
-                        <span id="total">₱0.00</span>
-                    </div>
-                </div>
-                <div class="payment-method-selector" id="paymentMethodSelector" style="display: none;">
-                    <label class="payment-label">Payment Method:</label>
-                    <div class="payment-options">
-                        <button class="payment-option" data-method="Cash" onclick="selectPaymentMethod('Cash')">
-                            <i class="fas fa-money-bill-wave"></i> Cash
-                        </button>
-                        <button class="payment-option" data-method="Card" onclick="selectPaymentMethod('Card')">
-                            <i class="fas fa-credit-card"></i> Card
-                        </button>
-                        <button class="payment-option" data-method="GCash" onclick="selectPaymentMethod('GCash')">
-                            <i class="fas fa-mobile-alt"></i> GCash
-                        </button>
-                    </div>
-                    <div class="cash-payment-details" id="cashPaymentDetails" style="display: none;">
-                        <label class="cash-label" for="cashAmount">Cash Received:</label>
-                        <input type="number" id="cashAmount" min="0" step="0.01" placeholder="Enter amount" oninput="updateCashChange()">
-                        <div class="cash-change-row">
-                            <span>Change:</span>
-                            <span id="cashChange">₱0.00</span>
+                <div class="cart-checkout-panel">
+                    <div class="cart-summary" id="cartSummary" style="display: none;">
+                        <div class="summary-row">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">₱0.00</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Total:</span>
+                            <span id="total">₱0.00</span>
                         </div>
                     </div>
+                    <div class="payment-method-selector" id="paymentMethodSelector" style="display: none;">
+                        <label class="payment-label">Payment Method:</label>
+                        <div class="payment-options">
+                            <button class="payment-option" data-method="Cash" onclick="selectPaymentMethod('Cash')">
+                                <i class="fas fa-money-bill-wave"></i> Cash
+                            </button>
+                            <button class="payment-option" data-method="Card" onclick="selectPaymentMethod('Card')">
+                                <i class="fas fa-credit-card"></i> Card
+                            </button>
+                            <button class="payment-option" data-method="GCash" onclick="selectPaymentMethod('GCash')">
+                                <i class="fas fa-mobile-alt"></i> GCash
+                            </button>
+                        </div>
+                        <div class="cash-payment-details" id="cashPaymentDetails" style="display: none;">
+                            <label class="cash-label" for="cashAmount">Cash Received:</label>
+                            <input type="number" id="cashAmount" min="0" step="0.01" placeholder="Enter amount" oninput="updateCashChange()">
+                            <div class="cash-change-row">
+                                <span>Change:</span>
+                                <span id="cashChange">₱0.00</span>
+                            </div>
+                        </div>
+                        <div class="customer-phone-row">
+                            <label class="cash-label" for="customerPhone">Customer Phone for Official Receipt:</label>
+                            <input type="text" id="customerPhone" placeholder="Enter customer phone number">
+                        </div>
+                    </div>
+                    <div class="checkout-actions">
+                        <button class="checkout-btn" id="officialReceiptBtn" onclick="checkoutWithReceipt()" disabled>
+                            Official Receipt
+                        </button>
+                        <button class="checkout-btn checkout-btn-secondary" id="quickProcessBtn" onclick="checkoutWithoutReceipt()" disabled>
+                            Process Without Details
+                        </button>
+                    </div>
                 </div>
-                <button class="checkout-btn" id="checkoutBtn" onclick="checkout()" disabled>
-                    Checkout
-                </button>
+            </div>
+        </div>
+
+        <div class="order-modal" id="createCustomerModal" style="display: none;" onclick="if(event.target===this){closeCreateCustomerModal();}">
+            <div class="order-modal-card">
+                <h3>Create Customer</h3>
+                <p class="modal-note">Phone number is not in the customer record.</p>
+                <div class="modal-form-grid">
+                    <input type="text" id="newCustomerName" placeholder="Full Name">
+                    <input type="text" id="newCustomerPhone" placeholder="Phone">
+                    <input type="email" id="newCustomerEmail" placeholder="Email (optional)">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeCreateCustomerModal()">Cancel</button>
+                    <button type="button" class="btn-primary" onclick="createCustomerAndContinue()">Save Customer</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-modal" id="orderSummaryModal" style="display: none;" onclick="if(event.target===this){closeOrderSummary();}">
+            <div class="order-modal-card order-summary-card">
+                <h3>Order Summary</h3>
+                <div class="summary-block" id="summaryCustomerBlock"></div>
+                <div class="summary-block" id="summaryInvoiceBlock"></div>
+                <div class="summary-block" id="summaryProductsBlock"></div>
+                <div class="modal-actions summary-actions">
+                    <button type="button" class="btn-secondary" id="printOrderBtn" onclick="printOrderSummary()" disabled>Print</button>
+                    <button type="button" class="btn-secondary" id="downloadOrderBtn" onclick="downloadOrderPdf()" disabled>Download PDF</button>
+                    <button type="button" class="btn-primary" id="doneOrderBtn" onclick="completeOrder()">Done (Process Order)</button>
+                </div>
             </div>
         </div>
 
@@ -313,6 +393,12 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         <!-- ADMIN DASHBOARD -->
         <div class="content-area">
             <div class="products-section">
+                <div class="admin-main-tabs">
+                    <button type="button" class="admin-main-tab-btn active" id="adminTabProducts" onclick="setAdminSection('products')">Products</button>
+                    <button type="button" class="admin-main-tab-btn" id="adminTabOrders" onclick="setAdminSection('orders')">Order History</button>
+                </div>
+
+                <div id="adminProductsSection">
                 <div class="search-bar">
                     <input type="text" id="searchInput" placeholder="Search..." onkeyup="searchProducts()">
                     <select id="sortBy" onchange="sortProducts()">
@@ -427,9 +513,82 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         </div>
                     </div>
                 </div>
+
+                </div>
+
+                <div id="adminOrdersSection" style="display: none;">
+
+                <div class="admin-analytics-grid">
+                    <div class="analytics-card">
+                        <div class="analytics-label">Today's Orders</div>
+                        <div class="analytics-value"><?php echo $admin_today_orders; ?></div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="analytics-label">Total Categories</div>
+                        <div class="analytics-value"><?php echo $admin_total_categories; ?></div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="analytics-label">Total Products</div>
+                        <div class="analytics-value"><?php echo $admin_total_products; ?></div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="analytics-label">Total Customers</div>
+                        <div class="analytics-value"><?php echo $admin_total_customers; ?></div>
+                    </div>
+                </div>
+
+                <div class="admin-orders-panel">
+                    <div class="orders-panel-header">
+                        <h2>Orders</h2>
+                        <div class="orders-filters">
+                            <input type="date" id="orderDateFilter" onchange="filterOrders()">
+                            <select id="orderPaymentFilter" onchange="filterOrders()">
+                                <option value="">All Payments</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Card">Card</option>
+                                <option value="GCash">GCash</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="orders-table-wrap">
+                        <table class="products-table" id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th>Tracking No</th>
+                                    <th>Order Date</th>
+                                    <th>Payment</th>
+                                    <th>Customer</th>
+                                    <th>Phone</th>
+                                    <th>Total</th>
+                                    <th>Created By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($admin_orders_result && mysqli_num_rows($admin_orders_result) > 0): ?>
+                                    <?php while ($order = mysqli_fetch_assoc($admin_orders_result)): ?>
+                                        <tr data-order-date="<?php echo date('Y-m-d', strtotime($order['order_date'])); ?>" data-payment-method="<?php echo htmlspecialchars($order['payment_method']); ?>">
+                                            <td><?php echo htmlspecialchars($order['tracking_no']); ?></td>
+                                            <td><?php echo date('M d, Y h:i A', strtotime($order['order_date'])); ?></td>
+                                            <td><?php echo htmlspecialchars($order['payment_method']); ?></td>
+                                            <td><?php echo htmlspecialchars($order['full_name'] ?? 'N/A'); ?></td>
+                                            <td><?php echo htmlspecialchars($order['phone'] ?? 'N/A'); ?></td>
+                                            <td>₱<?php echo number_format($order['total_amount'], 2); ?></td>
+                                            <td><?php echo htmlspecialchars($order['created_by'] ?? 'N/A'); ?></td>
+                                            <td><button type="button" class="btn-update" onclick="viewOrderDetails(<?php echo (int)$order['id']; ?>)">View</button></td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="8" style="text-align: center;">No orders found.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                </div>
             </div>
 
-            <div class="logs-section">
+            <div class="logs-section" id="adminLogsSection">
                 <h2>Inventory Logs</h2>
                 <div class="logs-container">
                     <?php if (!empty($grouped_logs)): ?>
@@ -466,10 +625,23 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 </div>
             </div>
         </div>
+
+        <div class="order-modal" id="adminOrderModal" style="display: none;" onclick="if(event.target===this){closeAdminOrderModal();}">
+            <div class="order-modal-card order-summary-card">
+                <h3>Order Details</h3>
+                <div class="summary-block" id="adminOrderSummaryBlock"></div>
+                <div class="modal-actions summary-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAdminOrderModal()">Close</button>
+                    <button type="button" class="btn-secondary" onclick="printAdminOrder()">Print</button>
+                    <button type="button" class="btn-secondary" onclick="downloadAdminOrderPdf()">Download PDF</button>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
     </div>
 
     <?php if ($isRegularUser): ?>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
         let activeCategory = 'all';
         function updateDateTime() {
@@ -502,6 +674,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
         let cart = [];
         let selectedPaymentMethod = null;
+        let selectedCustomer = null;
+        let savedOrder = null;
+        let isCompletingOrder = false;
+        let collectCustomerDetails = false;
 
         function normalizeCategory(value) {
             return String(value || '').trim().toLowerCase();
@@ -539,10 +715,29 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
             updateCashChange();
 
-            const checkoutBtn = document.getElementById('checkoutBtn');
-            if (checkoutBtn && cart.length > 0) {
-                checkoutBtn.disabled = false;
+            updateCheckoutButtons();
+        }
+
+        function updateCheckoutButtons() {
+            const officialReceiptBtn = document.getElementById('officialReceiptBtn');
+            const quickProcessBtn = document.getElementById('quickProcessBtn');
+            const isDisabled = cart.length === 0 || !selectedPaymentMethod;
+
+            if (officialReceiptBtn) {
+                officialReceiptBtn.disabled = isDisabled;
             }
+
+            if (quickProcessBtn) {
+                quickProcessBtn.disabled = isDisabled;
+            }
+        }
+
+        function hasCustomerDetails(orderData = savedOrder, customerData = selectedCustomer) {
+            if (orderData && typeof orderData.has_customer_details !== 'undefined') {
+                return !!orderData.has_customer_details;
+            }
+
+            return !!(customerData && (customerData.full_name || customerData.phone || customerData.email));
         }
 
         function updateCashChange() {
@@ -616,10 +811,19 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             updateCart();
         }
 
+        function closeCreateCustomerModal() {
+            const modal = document.getElementById('createCustomerModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function closeOrderSummary() {
+            const modal = document.getElementById('orderSummaryModal');
+            if (modal) modal.style.display = 'none';
+        }
+
         function updateCart() {
             const cartItemsContainer = document.getElementById('cartItems');
             const cartSummary = document.getElementById('cartSummary');
-            const checkoutBtn = document.getElementById('checkoutBtn');
             const paymentSelector = document.getElementById('paymentMethodSelector');
             const cashDetails = document.getElementById('cashPaymentDetails');
             const cashAmountInput = document.getElementById('cashAmount');
@@ -633,8 +837,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     </div>
                 `;
                 cartSummary.style.display = 'none';
-                checkoutBtn.disabled = true;
                 selectedPaymentMethod = null;
+                collectCustomerDetails = false;
                 if (paymentSelector) {
                     paymentSelector.style.display = 'none';
                 }
@@ -646,6 +850,11 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     cashChange.textContent = '₱0.00';
                     cashChange.classList.remove('insufficient');
                 }
+                const customerPhoneInput = document.getElementById('customerPhone');
+                if (customerPhoneInput) customerPhoneInput.value = '';
+                selectedCustomer = null;
+                savedOrder = null;
+                updateCheckoutButtons();
             } else {
                 let html = '';
                 let subtotal = 0;
@@ -678,7 +887,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 if (paymentSelector) {
                     paymentSelector.style.display = 'block';
                 }
-                checkoutBtn.disabled = !selectedPaymentMethod;
+                updateCheckoutButtons();
 
                 updateCashChange();
             }
@@ -732,64 +941,521 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             searchPOSProducts();
         }
 
-        function checkout() {
+        function validateCheckout(requireCustomerDetails) {
             if (cart.length === 0) return;
             if (!selectedPaymentMethod) {
                 alert('Please select a payment method.');
-                return;
+                return false;
             }
-            
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            let cashReceived = null;
-            let change = null;
+
+            if (requireCustomerDetails) {
+                const customerPhoneInput = document.getElementById('customerPhone');
+                const phone = (customerPhoneInput?.value || '').trim();
+                if (!phone) {
+                    alert('Please enter the customer phone number for the official receipt.');
+                    return false;
+                }
+            }
 
             if (selectedPaymentMethod === 'Cash') {
                 const cashAmountInput = document.getElementById('cashAmount');
-                cashReceived = parseFloat(cashAmountInput?.value || '0');
-
+                const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const cashReceived = parseFloat(cashAmountInput?.value || '0');
                 if (!cashReceived || cashReceived < total) {
                     alert('Cash received must be greater than or equal to the total amount.');
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        async function checkoutWithReceipt() {
+            if (!validateCheckout(true)) {
+                return;
+            }
+
+            collectCustomerDetails = true;
+            const customerPhoneInput = document.getElementById('customerPhone');
+            const phone = (customerPhoneInput?.value || '').trim();
+
+            try {
+                const response = await fetch(`../backend/customer_lookup.php?phone=${encodeURIComponent(phone)}`);
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error || 'Unable to validate customer phone.');
                     return;
                 }
 
-                change = cashReceived - total;
-            }
-            
-            const cashDetails = selectedPaymentMethod === 'Cash'
-                ? `\nCash Received: ₱${cashReceived.toFixed(2)}\nChange: ₱${change.toFixed(2)}`
-                : '';
-
-            if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}\nPayment Method: ${selectedPaymentMethod}${cashDetails}`)) {
-                const formData = new FormData();
-                formData.append('cart', JSON.stringify(cart));
-                formData.append('total', total);
-                formData.append('payment_method', selectedPaymentMethod);
-
-                if (selectedPaymentMethod === 'Cash') {
-                    formData.append('cash_received', cashReceived.toFixed(2));
-                    formData.append('cash_change', change.toFixed(2));
+                if (data.exists) {
+                    selectedCustomer = data.customer;
+                    await saveOrder(false);
+                    return;
                 }
-                
-                fetch('../backend/process_sale.php', {
+
+                document.getElementById('newCustomerPhone').value = phone;
+                document.getElementById('createCustomerModal').style.display = 'flex';
+            } catch (error) {
+                console.error(error);
+                alert('Error checking customer phone.');
+            }
+        }
+
+        async function checkoutWithoutReceipt() {
+            if (!validateCheckout(false)) {
+                return;
+            }
+
+            collectCustomerDetails = false;
+            selectedCustomer = null;
+            await saveOrder(false);
+        }
+
+        async function checkout() {
+            if (!validateCheckout(true)) {
+                return;
+            }
+
+            const customerPhoneInput = document.getElementById('customerPhone');
+            const phone = (customerPhoneInput?.value || '').trim();
+            if (!phone) {
+                alert('Please enter the customer phone number.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`../backend/customer_lookup.php?phone=${encodeURIComponent(phone)}`);
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error || 'Unable to validate customer phone.');
+                    return;
+                }
+
+                if (data.exists) {
+                    selectedCustomer = data.customer;
+                    await saveOrder(false);
+                    return;
+                }
+
+                document.getElementById('newCustomerPhone').value = phone;
+                document.getElementById('createCustomerModal').style.display = 'flex';
+            } catch (error) {
+                console.error(error);
+                alert('Error checking customer phone.');
+            }
+        }
+
+        async function createCustomerAndContinue() {
+            const fullName = (document.getElementById('newCustomerName').value || '').trim();
+            const phone = (document.getElementById('newCustomerPhone').value || '').trim();
+            const email = (document.getElementById('newCustomerEmail').value || '').trim();
+
+            if (!fullName || !phone) {
+                alert('Full name and phone are required.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('full_name', fullName);
+            formData.append('phone', phone);
+            formData.append('email', email);
+
+            try {
+                const response = await fetch('../backend/create_customer.php', {
                     method: 'POST',
                     body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Sale completed successfully!');
-                        cart = [];
-                        updateCart();
-                        setTimeout(() => location.reload(), 500);
-                    } else {
-                        alert('Error processing sale: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error processing sale. Please try again.');
                 });
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error || 'Failed to create customer.');
+                    return;
+                }
+
+                selectedCustomer = data.customer;
+                closeCreateCustomerModal();
+                await saveOrder(false);
+            } catch (error) {
+                console.error(error);
+                alert('Error creating customer.');
             }
+        }
+
+        function buildSummaryHtml(orderRefText, orderDateText) {
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const includeCustomerDetails = hasCustomerDetails();
+            const itemsRows = cart.map(item => `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>₱${item.price.toFixed(2)}</td>
+                    <td>₱${(item.price * item.quantity).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            let paymentExtra = '';
+            if (selectedPaymentMethod === 'Cash') {
+                const cashReceived = parseFloat(document.getElementById('cashAmount')?.value || '0');
+                const change = Math.max(cashReceived - total, 0);
+                paymentExtra = `<div>Cash Received: ₱${cashReceived.toFixed(2)}</div><div>Change: ₱${change.toFixed(2)}</div>`;
+            }
+
+            return {
+                customerHtml: includeCustomerDetails ? `
+                    <h4>Customer Details</h4>
+                    <div>Name: ${selectedCustomer?.full_name || 'N/A'}</div>
+                    <div>Phone: ${selectedCustomer?.phone || 'N/A'}</div>
+                    <div>Email: ${selectedCustomer?.email || 'N/A'}</div>
+                ` : '',
+                invoiceHtml: `
+                    <h4>Invoice Details</h4>
+                    <div>Invoice Number: ${orderRefText}</div>
+                    <div>Invoice Date: ${orderDateText}</div>
+                    <div>Payment Mode: ${selectedPaymentMethod}</div>
+                    ${paymentExtra}
+                `,
+                productsHtml: `
+                    <h4>Products</h4>
+                    <table class="summary-products-table">
+                        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+                        <tbody>${itemsRows}</tbody>
+                    </table>
+                    <div class="summary-total-row">Total: ₱${total.toFixed(2)}</div>
+                `
+            };
+        }
+
+        function showOrderSummary() {
+            if (collectCustomerDetails && !selectedCustomer) {
+                alert('Customer is required before order summary.');
+                return;
+            }
+
+            const invoiceNo = savedOrder?.tracking_no || 'Pending (save to generate)';
+            const invoiceDate = savedOrder?.order_date || new Date().toLocaleString();
+            const blocks = buildSummaryHtml(invoiceNo, invoiceDate);
+
+            const summaryCustomerBlock = document.getElementById('summaryCustomerBlock');
+            if (summaryCustomerBlock) {
+                summaryCustomerBlock.innerHTML = blocks.customerHtml;
+                summaryCustomerBlock.style.display = blocks.customerHtml ? 'block' : 'none';
+            }
+            document.getElementById('summaryInvoiceBlock').innerHTML = blocks.invoiceHtml;
+            document.getElementById('summaryProductsBlock').innerHTML = blocks.productsHtml;
+
+            const saveBtn = document.getElementById('saveOrderBtn');
+            const printBtn = document.getElementById('printOrderBtn');
+            const downloadBtn = document.getElementById('downloadOrderBtn');
+            if (saveBtn) {
+                saveBtn.disabled = !!savedOrder;
+                saveBtn.textContent = savedOrder ? 'Order Auto-Saved' : 'Save Order';
+            }
+            if (printBtn) printBtn.disabled = !savedOrder;
+            if (downloadBtn) downloadBtn.disabled = !savedOrder;
+
+            document.getElementById('orderSummaryModal').style.display = 'flex';
+        }
+
+        async function saveOrder(showSuccessAlert = true) {
+            if (collectCustomerDetails && !selectedCustomer) {
+                alert('Customer is required.');
+                return false;
+            }
+
+            if (savedOrder) {
+                showOrderSummary();
+                if (showSuccessAlert) {
+                    alert(`Order already saved with invoice number ${savedOrder.tracking_no}.`);
+                }
+                return true;
+            }
+
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const formData = new FormData();
+            formData.append('cart', JSON.stringify(cart));
+            formData.append('total', total.toFixed(2));
+            formData.append('payment_method', selectedPaymentMethod);
+            formData.append('collect_customer_details', collectCustomerDetails ? '1' : '0');
+
+            if (selectedCustomer?.id) {
+                formData.append('customer_id', selectedCustomer.id);
+            }
+
+            if (selectedPaymentMethod === 'Cash') {
+                const cashReceived = parseFloat(document.getElementById('cashAmount')?.value || '0');
+                const change = Math.max(cashReceived - total, 0);
+                formData.append('cash_received', cashReceived.toFixed(2));
+                formData.append('cash_change', change.toFixed(2));
+            }
+
+            try {
+                const response = await fetch('../backend/place_order.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error || 'Failed to save order.');
+                    return false;
+                }
+
+                savedOrder = data;
+                showOrderSummary();
+                if (showSuccessAlert) {
+                    alert('Order saved successfully. You can now print or download PDF.');
+                }
+                return true;
+            } catch (error) {
+                console.error(error);
+                alert('Error saving order.');
+                return false;
+            }
+        }
+
+        async function completeOrder() {
+            if (isCompletingOrder) {
+                return;
+            }
+
+            isCompletingOrder = true;
+            const doneBtn = document.getElementById('doneOrderBtn');
+            if (doneBtn) doneBtn.disabled = true;
+
+            try {
+                let processed = !!savedOrder;
+                if (!processed) {
+                    processed = await saveOrder(false);
+                }
+
+                if (!processed) {
+                    return;
+                }
+
+                alert('Order processed successfully. Inventory has been updated.');
+                window.location.reload();
+            } finally {
+                isCompletingOrder = false;
+                if (doneBtn) doneBtn.disabled = false;
+            }
+        }
+
+        function formatCurrency(value) {
+            return Number(value || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function escapeHtml(text) {
+            return String(text ?? 'N/A')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getCompanyDetails() {
+            return {
+                name: '9toFive Convenience Store',
+                address1: '94 Kamuning Road, Brgy. Kamuning, Quezon City, 1103 Metro Manila, Philippines',
+                address2: '9toFive Retail Solutions Inc.'
+            };
+        }
+
+        function buildInvoiceHtml(order, customer, items) {
+            const company = getCompanyDetails();
+            const includeCustomerDetails = hasCustomerDetails(order, customer);
+            const grandTotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+            const rows = items.map((item, index) => {
+                const subtotal = Number(item.price) * Number(item.quantity);
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td>${formatCurrency(item.price)}</td>
+                        <td>${item.quantity}</td>
+                        <td><strong>${formatCurrency(subtotal)}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <html>
+                <head>
+                    <title>Order ${escapeHtml(order.tracking_no)}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 18px; color: #222; }
+                        .header { text-align: center; margin-bottom: 14px; }
+                        .header h2 { margin: 0 0 6px; }
+                        .header p { margin: 2px 0; color: #444; font-size: 14px; }
+                        .top-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 10px; }
+                        .top-grid h3 { margin: 0 0 6px; font-size: 20px; }
+                        .top-grid p { margin: 3px 0; font-size: 14px; }
+                        .top-grid .right { text-align: right; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+                        thead th { text-align: left; border-bottom: 1px solid #999; padding: 8px 6px; }
+                        td { border-bottom: 1px solid #ddd; padding: 8px 6px; }
+                        .bottom { display: flex; justify-content: space-between; margin-top: 12px; font-size: 20px; }
+                        .grand { font-weight: 700; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>${escapeHtml(company.name)}</h2>
+                        <p>${escapeHtml(company.address1)}</p>
+                        <p>${escapeHtml(company.address2)}</p>
+                    </div>
+
+                    <div class="top-grid" style="grid-template-columns: ${includeCustomerDetails ? '1fr 1fr' : '1fr'};">
+                        ${includeCustomerDetails ? `<div>
+                            <h3>Customer Details</h3>
+                            <p>Customer Name: ${escapeHtml(customer.full_name)}</p>
+                            <p>Customer Phone No: ${escapeHtml(customer.phone)}</p>
+                            <p>Customer Email Id: ${escapeHtml(customer.email || 'N/A')}</p>
+                        </div>` : ''}
+                        <div class="right">
+                            <h3>Invoice Details</h3>
+                            <p>Invoice No: ${escapeHtml(order.tracking_no)}</p>
+                            <p>Invoice Date: ${escapeHtml(order.order_date)}</p>
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Product Name</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Total Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+
+                    <div class="bottom">
+                        <div>Payment Mode: ${escapeHtml(order.payment_method)}</div>
+                        <div class="grand">Grand Total: ${formatCurrency(grandTotal)}</div>
+                    </div>
+                </body>
+                </html>
+            `;
+        }
+
+        function printOrderSummary() {
+            if (!savedOrder) {
+                alert('Please save the order first.');
+                return;
+            }
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) return;
+            const orderData = {
+                tracking_no: savedOrder?.tracking_no || 'N/A',
+                order_date: savedOrder?.order_date || new Date().toLocaleString(),
+                payment_method: selectedPaymentMethod || 'N/A',
+                has_customer_details: savedOrder?.has_customer_details ?? hasCustomerDetails(savedOrder, selectedCustomer)
+            };
+            printWindow.document.write(buildInvoiceHtml(orderData, selectedCustomer || {}, cart));
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+
+        function downloadOrderPdf() {
+            if (!savedOrder) {
+                alert('Please save the order first.');
+                return;
+            }
+
+            const jspdfRef = window.jspdf;
+            if (!jspdfRef || !jspdfRef.jsPDF) {
+                alert('PDF library is not loaded.');
+                return;
+            }
+
+            const doc = new jspdfRef.jsPDF();
+            const company = getCompanyDetails();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const leftX = 14;
+            const rightX = pageWidth - 14;
+            const includeCustomerDetails = hasCustomerDetails(savedOrder, selectedCustomer);
+            const total = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+            let y = 16;
+
+            doc.setFontSize(17);
+            doc.text(company.name, pageWidth / 2, y, { align: 'center' });
+            y += 7;
+            doc.setFontSize(10);
+            doc.text(company.address1, pageWidth / 2, y, { align: 'center' });
+            y += 5;
+            doc.text(company.address2, pageWidth / 2, y, { align: 'center' });
+            y += 10;
+
+            doc.setFontSize(12);
+            if (includeCustomerDetails) {
+                doc.text('Customer Details', leftX, y);
+                doc.text('Invoice Details', rightX, y, { align: 'right' });
+            } else {
+                doc.text('Invoice Details', leftX, y);
+            }
+            y += 6;
+
+            doc.setFontSize(10);
+            if (includeCustomerDetails) {
+                doc.text(`Customer Name: ${selectedCustomer?.full_name || 'N/A'}`, leftX, y);
+                doc.text(`Invoice No: ${savedOrder?.tracking_no || 'N/A'}`, rightX, y, { align: 'right' });
+            } else {
+                doc.text(`Invoice No: ${savedOrder?.tracking_no || 'N/A'}`, leftX, y);
+            }
+            y += 5;
+            if (includeCustomerDetails) {
+                doc.text(`Customer Phone No: ${selectedCustomer?.phone || 'N/A'}`, leftX, y);
+                doc.text(`Invoice Date: ${savedOrder?.order_date || new Date().toLocaleString()}`, rightX, y, { align: 'right' });
+            } else {
+                doc.text(`Invoice Date: ${savedOrder?.order_date || new Date().toLocaleString()}`, leftX, y);
+            }
+            y += 5;
+            if (includeCustomerDetails) {
+                doc.text(`Customer Email Id: ${selectedCustomer?.email || 'N/A'}`, leftX, y);
+                y += 8;
+            } else {
+                y += 3;
+            }
+
+            const col = { id: 14, name: 26, price: 132, qty: 158, total: 181 };
+            doc.setLineWidth(0.2);
+            doc.line(leftX, y - 3, rightX, y - 3);
+            doc.text('ID', col.id, y);
+            doc.text('Product Name', col.name, y);
+            doc.text('Price', col.price, y);
+            doc.text('Quantity', col.qty, y);
+            doc.text('Total Price', col.total, y);
+            y += 4;
+            doc.line(leftX, y, rightX, y);
+            y += 5;
+
+            cart.forEach((item, index) => {
+                const rowTotal = Number(item.price) * Number(item.quantity);
+                doc.text(String(index + 1), col.id, y);
+                doc.text(String(item.name || 'N/A'), col.name, y);
+                doc.text(formatCurrency(item.price), col.price, y);
+                doc.text(String(item.quantity), col.qty, y);
+                doc.text(formatCurrency(rowTotal), col.total, y);
+                y += 6;
+
+                if (y > 272) {
+                    doc.addPage();
+                    y = 16;
+                }
+            });
+
+            doc.line(leftX, y - 2, rightX, y - 2);
+            y += 6;
+            doc.setFontSize(11);
+            doc.text(`Payment Mode: ${selectedPaymentMethod || 'N/A'}`, leftX, y);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Grand Total: ${formatCurrency(total)}`, rightX, y, { align: 'right' });
+            doc.save(`${savedOrder.tracking_no}.pdf`);
         }
 
         function toggleMobileMenu() {
@@ -803,7 +1469,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         searchPOSProducts();
     </script>
     <?php else: ?>
-    <script src="dashboard.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/dashboard.js"></script>
     <script>
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');

@@ -19,3 +19,9 @@ INSERT INTO products (product_name, category_id, price, stock, status) VALUES
 ('C2 Apple', 2, 20.00, 30, 'Available'),
 ('Sky Flakes', 1, 28.00, 8, 'Available'),
 ('Oishi Prawn Crackers', 1, 38.00, 5, 'Available');
+
+-- Sample customers
+INSERT INTO customers (id, full_name, phone, email) VALUES
+(1, 'John Reyes', '09171234567', 'john.reyes@example.com'),
+(2, 'Maria Santos', '09179876543', 'maria.santos@example.com')
+ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), email = VALUES(email);

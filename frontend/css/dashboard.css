@@ -151,6 +151,7 @@ body {
   gap: 20px;
   padding: 20px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .products-section {
@@ -158,6 +159,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#adminProductsSection {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -168,6 +178,28 @@ body {
 .search-bar {
   display: flex;
   gap: 15px;
+}
+
+.admin-main-tabs {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-main-tab-btn {
+  padding: 10px 14px;
+  border: 1px solid #d9e1ee;
+  background: #ffffff;
+  color: #4f6078;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.admin-main-tab-btn.active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .admin-view-toggle {
@@ -220,7 +252,28 @@ body {
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   flex: 1;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  max-height: calc(100vh - 210px);
+}
+
+.admin-table-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.admin-card-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding-right: 4px;
 }
 
 .products-table-container h2 {
@@ -315,6 +368,128 @@ body {
   margin-top: 4px;
 }
 
+.admin-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.analytics-card {
+  background: #ffffff;
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.analytics-label {
+  color: #6a7890;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.analytics-value {
+  margin-top: 6px;
+  color: #2c3e50;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.admin-orders-panel {
+  background: #ffffff;
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.orders-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.orders-panel-header h2 {
+  color: #2c3e50;
+}
+
+.orders-filters {
+  display: flex;
+  gap: 10px;
+}
+
+.orders-filters input,
+.orders-filters select {
+  padding: 8px 10px;
+  border: 1px solid #d9e1ee;
+  border-radius: 8px;
+}
+
+.orders-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.order-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.order-modal-card {
+  width: min(860px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.summary-actions {
+  flex-wrap: wrap;
+}
+
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 120px;
+  margin-top: 0;
+}
+
+.summary-block {
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.summary-products-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary-products-table th,
+.summary-products-table td {
+  border-bottom: 1px solid #eef2f7;
+  text-align: left;
+  padding: 8px 6px;
+}
+
 .products-table {
   width: 100%;
   border-collapse: collapse;
@@ -342,6 +517,36 @@ body {
   border-bottom: 1px solid #f0f3f7;
 }
 
+#productsTable .action-column,
+#productsTable .action-cell {
+  position: sticky;
+  background: #ffffff;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+#productsTable thead .action-column {
+  background: #f8f9fb;
+  z-index: 4;
+}
+
+#productsTable .action-column-update,
+#productsTable .action-cell-update {
+  right: 88px;
+  min-width: 112px;
+}
+
+#productsTable .action-column-delete,
+#productsTable .action-cell-delete {
+  right: 0;
+  min-width: 86px;
+}
+
+#productsTable .action-cell-update,
+#productsTable .action-cell-delete {
+  box-shadow: -1px 0 0 #eef2f7;
+}
+
 .products-table tbody tr:hover {
   background: #f8f9fb;
 }
@@ -351,8 +556,13 @@ body {
   background: #667eea;
   color: white;
   text-decoration: none;
+  border: none;
   border-radius: 4px;
   font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
   transition: background 0.3s;
 }
 
@@ -365,9 +575,13 @@ body {
   background: #ff4757;
   color: white;
   text-decoration: none;
+  border: none;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
   transition: background 0.3s;
 }
 
@@ -994,6 +1208,10 @@ body {
     width: 100%;
   }
 
+  .products-table-container {
+    max-height: none;
+  }
+
   .logs-section {
     order: 2;
     width: 100%;
@@ -1022,6 +1240,16 @@ body {
 
   .admin-view-toggle {
     width: 100%;
+  }
+
+  .admin-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .orders-panel-header,
+  .orders-filters {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .admin-view-btn {
@@ -1546,4 +1774,148 @@ body {
   .form-section-wide {
     padding: 20px;
   }
+}
+
+/* ── Manage Users modal ─────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-box {
+  background: #fff;
+  border-radius: 12px;
+  width: min(460px, 96vw);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8eef5;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.modal-close:hover {
+  color: #444;
+}
+
+.modal-box form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.form-control {
+  padding: 9px 12px;
+  border: 2px solid #e0e6ed;
+  border-radius: 8px;
+  font-size: 14px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn-save {
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-save:hover {
+  opacity: 0.88;
+}
+
+.btn-cancel {
+  padding: 9px 20px;
+  background: #f0f3f7;
+  color: #2c3e50;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #e0e6ed;
+}
+
+.btn-add-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-add-product:hover {
+  opacity: 0.88;
 }
