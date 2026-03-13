@@ -288,6 +288,28 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         <span id="total">₱0.00</span>
                     </div>
                 </div>
+                <div class="payment-method-selector" id="paymentMethodSelector" style="display: none;">
+                    <label class="payment-label">Payment Method:</label>
+                    <div class="payment-options">
+                        <button class="payment-option" data-method="Cash" onclick="selectPaymentMethod('Cash')">
+                            <i class="fas fa-money-bill-wave"></i> Cash
+                        </button>
+                        <button class="payment-option" data-method="Card" onclick="selectPaymentMethod('Card')">
+                            <i class="fas fa-credit-card"></i> Card
+                        </button>
+                        <button class="payment-option" data-method="GCash" onclick="selectPaymentMethod('GCash')">
+                            <i class="fas fa-mobile-alt"></i> GCash
+                        </button>
+                    </div>
+                    <div class="cash-payment-details" id="cashPaymentDetails" style="display: none;">
+                        <label class="cash-label" for="cashAmount">Cash Received:</label>
+                        <input type="number" id="cashAmount" min="0" step="0.01" placeholder="Enter amount" oninput="updateCashChange()">
+                        <div class="cash-change-row">
+                            <span>Change:</span>
+                            <span id="cashChange">₱0.00</span>
+                        </div>
+                    </div>
+                </div>
                 <button class="checkout-btn" id="checkoutBtn" onclick="checkout()" disabled>
                     Checkout
                 </button>
@@ -442,13 +464,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
 
     <?php if ($isRegularUser): ?>
     <script>
-        let cart = [];
         let activeCategory = 'all';
-
-        function normalizeCategory(value) {
-            return String(value || '').trim().toLowerCase();
-        }
-
         function updateDateTime() {
             const now = new Date();
             const options = {
@@ -477,6 +493,13 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
         }
 
+        let cart = [];
+        let selectedPaymentMethod = null;
+
+        function normalizeCategory(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
         function initializePOSCardClicks() {
             const cards = document.querySelectorAll('.product-card[data-clickable="1"]');
             cards.forEach(card => {
@@ -488,6 +511,44 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     addToCart(id, name, price, category);
                 });
             });
+        }
+
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            const buttons = document.querySelectorAll('.payment-option');
+            buttons.forEach(btn => {
+                if (btn.dataset.method === method) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+
+            const cashDetails = document.getElementById('cashPaymentDetails');
+            if (cashDetails) {
+                cashDetails.style.display = method === 'Cash' ? 'block' : 'none';
+            }
+
+            updateCashChange();
+        }
+
+        function updateCashChange() {
+            const cashAmountInput = document.getElementById('cashAmount');
+            const cashChange = document.getElementById('cashChange');
+
+            if (!cashAmountInput || !cashChange) return;
+
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const cashReceived = parseFloat(cashAmountInput.value || '0');
+            const change = cashReceived - total;
+
+            if (change >= 0) {
+                cashChange.textContent = '₱' + change.toFixed(2);
+                cashChange.classList.remove('insufficient');
+            } else {
+                cashChange.textContent = '₱0.00';
+                cashChange.classList.add('insufficient');
+            }
         }
 
         function addToCart(id, name, price, category) {
@@ -536,6 +597,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const cartItemsContainer = document.getElementById('cartItems');
             const cartSummary = document.getElementById('cartSummary');
             const checkoutBtn = document.getElementById('checkoutBtn');
+            const paymentSelector = document.getElementById('paymentMethodSelector');
+            const cashDetails = document.getElementById('cashPaymentDetails');
+            const cashAmountInput = document.getElementById('cashAmount');
+            const cashChange = document.getElementById('cashChange');
             
             if (cart.length === 0) {
                 cartItemsContainer.innerHTML = `
@@ -546,6 +611,14 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 `;
                 cartSummary.style.display = 'none';
                 checkoutBtn.disabled = true;
+                selectedPaymentMethod = null;
+
+                if (cashDetails) cashDetails.style.display = 'none';
+                if (cashAmountInput) cashAmountInput.value = '';
+                if (cashChange) {
+                    cashChange.textContent = '₱0.00';
+                    cashChange.classList.remove('insufficient');
+                }
             } else {
                 let html = '';
                 let subtotal = 0;
@@ -576,6 +649,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
                 cartSummary.style.display = 'block';
                 checkoutBtn.disabled = false;
+
+                updateCashChange();
             }
         }
 
@@ -612,29 +687,48 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
         }
 
-        function searchPOSProducts() {
-            applyPOSFilters();
-        }
-
         function filterCategory(category, element) {
             const buttons = document.querySelectorAll('.category-btn');
             
             buttons.forEach(btn => btn.classList.remove('active'));
             element.classList.add('active');
             activeCategory = category === 'all' ? 'all' : normalizeCategory(category);
-            applyPOSFilters();
+            searchPOSProducts();
         }
 
         function checkout() {
             if (cart.length === 0) return;
             
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            let cashReceived = null;
+            let change = null;
+
+            if (selectedPaymentMethod === 'Cash') {
+                const cashAmountInput = document.getElementById('cashAmount');
+                cashReceived = parseFloat(cashAmountInput?.value || '0');
+
+                if (!cashReceived || cashReceived < total) {
+                    alert('Cash received must be greater than or equal to the total amount.');
+                    return;
+                }
+
+                change = cashReceived - total;
+            }
             
-            if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}`)) {
+            const cashDetails = selectedPaymentMethod === 'Cash'
+                ? `\nCash Received: ₱${cashReceived.toFixed(2)}\nChange: ₱${change.toFixed(2)}`
+                : '';
+
+            if (confirm(`Proceed with checkout?\n\nTotal: ₱${total.toFixed(2)}\nItems: ${cart.length}\nPayment Method: ${selectedPaymentMethod}${cashDetails}`)) {
                 const formData = new FormData();
                 formData.append('cart', JSON.stringify(cart));
                 formData.append('total', total);
-                formData.append('payment_method', 'Cash');
+                formData.append('payment_method', selectedPaymentMethod);
+
+                if (selectedPaymentMethod === 'Cash') {
+                    formData.append('cash_received', cashReceived.toFixed(2));
+                    formData.append('cash_change', change.toFixed(2));
+                }
                 
                 fetch('../backend/process_sale.php', {
                     method: 'POST',
@@ -663,10 +757,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             nav.classList.toggle('active');
         }
 
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
         initializePOSCardClicks();
-        applyPOSFilters();
+        searchPOSProducts();
     </script>
     <?php else: ?>
     <script src="dashboard.js"></script>
