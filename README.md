@@ -1,4 +1,4 @@
-# FixFlo POS System
+# 9toFive POS System
 
 A modern Point of Sale (POS) system with user authentication, role-based dashboards, and comprehensive product management.
 

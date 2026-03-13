@@ -32,13 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - FixFlo POS</title>
+    <title>Login</title>
+    <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="auth.css">
 </head>
 <body>
     <div class="auth-container">
         <div class="auth-box">
-            <h1>FixFlo</h1>
+            <div class="auth-logo">
+                <img src="images/logo.jpg" alt="Logo">
+            </div>
             <h2>Login</h2>
             
             <?php if ($error): ?>

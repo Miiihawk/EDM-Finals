@@ -1,20 +1,16 @@
 <?php
 require_once '../backend/config.php';
 
-// Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: dashboard.php');
     exit();
 }
 
-// Get all users
 $users_query = "SELECT * FROM users ORDER BY id ASC";
 $users_result = mysqli_query($conn, $users_query);
 
-// Handle user deletion
 if (isset($_GET['delete_user'])) {
     $delete_id = intval($_GET['delete_user']);
-    // Don't allow deleting yourself
     if ($delete_id != $_SESSION['user_id']) {
         mysqli_query($conn, "DELETE FROM users WHERE id = $delete_id");
     }
@@ -27,14 +23,15 @@ if (isset($_GET['delete_user'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Users - FixFlo POS</title>
+    <title>Manage Users</title>
+    <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
     <div class="sidebar">
         <div class="logo">
-            <h2>FixFlo</h2>
+            <img src="images/logo.jpg" alt="FixFlo Logo">
         </div>
         <button class="menu-toggle" onclick="toggleMobileMenu()">
             <i class="fas fa-bars"></i>
@@ -48,9 +45,6 @@ if (isset($_GET['delete_user'])) {
             </a>
             <a href="add_product.php">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products
-            </a>
-            <a href="add_product.php">
-                <span><i class="fas fa-edit"></i></span> Edit
             </a>
             <a href="../backend/logout.php">
                 <span><i class="fas fa-sign-out-alt"></i></span> Logout
@@ -114,7 +108,6 @@ if (isset($_GET['delete_user'])) {
     </div>
 
     <script>
-        // Mobile menu toggle
         function toggleMobileMenu() {
             const nav = document.getElementById('mobileNav');
             nav.classList.toggle('active');

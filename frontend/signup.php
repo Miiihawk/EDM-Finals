@@ -14,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($password !== $confirm_password) {
         $error = 'Passwords do not match';
     } else {
-        // Check if username already exists
         $check_query = "SELECT * FROM users WHERE username = '$username'";
         $check_result = mysqli_query($conn, $check_query);
         
@@ -38,13 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - FixFlo POS</title>
+    <title>Sign Up</title>
+    <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="auth.css">
 </head>
 <body>
     <div class="auth-container">
         <div class="auth-box">
-            <h1>FixFlo</h1>
+            <div class="auth-logo">
+                <img src="images/logo.jpg" alt="Logo">
+            </div>
             <h2>Create Account</h2>
             
             <?php if ($error): ?>
