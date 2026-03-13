@@ -243,6 +243,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                              data-category="<?php echo htmlspecialchars($category); ?>"
                              data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
                              data-price="<?php echo (float)$product['price']; ?>"
+                                data-stock="<?php echo (int)$product['stock']; ?>"
                              data-clickable="<?php echo $isOutOfStock ? '0' : '1'; ?>">
                             <div class="product-icon">
                                 <?php
@@ -508,7 +509,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     const name = card.dataset.name;
                     const price = parseFloat(card.dataset.price);
                     const category = card.dataset.category;
-                    addToCart(id, name, price, category);
+                    const stock = parseInt(card.dataset.stock, 10);
+                    addToCart(id, name, price, category, stock);
                 });
             });
         }
@@ -551,10 +553,15 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
         }
 
-        function addToCart(id, name, price, category) {
+        function addToCart(id, name, price, category, stock) {
+            const maxStock = Number.isFinite(stock) ? stock : parseInt(stock, 10);
             const existingItem = cart.find(item => item.id === id);
             
             if (existingItem) {
+                if (existingItem.quantity >= existingItem.stock) {
+                    alert('Cannot add more. Stock limit reached for this product.');
+                    return;
+                }
                 existingItem.quantity++;
             } else {
                 const icons = {
@@ -569,6 +576,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     name: name,
                     price: price,
                     quantity: 1,
+                    stock: maxStock,
                     icon: icons[category] || '<i class="fas fa-box"></i>'
                 });
             }
@@ -579,6 +587,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         function updateQuantity(id, change) {
             const item = cart.find(item => item.id === id);
             if (item) {
+                if (change > 0 && item.quantity >= item.stock) {
+                    alert('Cannot add more. Stock limit reached for this product.');
+                    return;
+                }
                 item.quantity += change;
                 if (item.quantity <= 0) {
                     removeFromCart(id);
