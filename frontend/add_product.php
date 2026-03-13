@@ -49,10 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if (mysqli_query($conn, $update_query)) {
             if ($stock_diff != 0) {
-                $log_query = "INSERT INTO logs (product_name, quantity, action, username) 
-                             VALUES ('$product_name', $stock_diff, 'Updated', '{$_SESSION['username']}')";
-                mysqli_query($conn, $log_query);
-                
                 $history_query = "INSERT INTO inventory_history (product_id, user_id, change_quantity, reason) 
                                  VALUES ($edit_id, {$_SESSION['user_id']}, $stock_diff, 'Product Updated')";
                 mysqli_query($conn, $history_query);
@@ -70,10 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if (mysqli_query($conn, $insert_query)) {
             $product_id = mysqli_insert_id($conn);
-            
-            $log_query = "INSERT INTO logs (product_name, quantity, action, username) 
-                         VALUES ('$product_name', $stock, 'Added', '{$_SESSION['username']}')";
-            mysqli_query($conn, $log_query);
             
             $history_query = "INSERT INTO inventory_history (product_id, user_id, change_quantity, reason) 
                              VALUES ($product_id, {$_SESSION['user_id']}, $stock, 'Product Added')";
