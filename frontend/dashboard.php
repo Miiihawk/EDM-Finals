@@ -353,13 +353,25 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                                 if (mysqli_num_rows($products_result) > 0): 
                                 ?>
                                     <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
+                                        <?php
+                                        $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
+                                        $isLowStock = ((int)$product['stock']) < 10;
+                                        ?>
                                         <tr>
                                             <td><?php echo $product['id']; ?></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
                                             <td>₱<?php echo number_format($product['price'], 2); ?></td>
-                                            <td><?php echo $product['status']; ?></td>
-                                            <td><?php echo $product['stock']; ?></td>
+                                            <td>
+                                                <span class="status-pill status-<?php echo $statusClass; ?>">
+                                                    <?php echo strtoupper(htmlspecialchars($product['status'])); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="stock-value <?php echo $isLowStock ? 'low-stock' : ''; ?>">
+                                                    <?php echo (int)$product['stock']; ?>
+                                                </span>
+                                            </td>
                                             <td>
                                                 <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
                                             </td>
@@ -387,6 +399,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                             if (mysqli_num_rows($products_result) > 0):
                                 while ($product = mysqli_fetch_assoc($products_result)):
                                     $adminCategory = $product['category_name'] ?? 'N/A';
+                                    $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
+                                    $isLowStock = ((int)$product['stock']) < 10;
                             ?>
                                 <div class="admin-product-card"
                                      data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
@@ -397,8 +411,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                                     <div class="admin-card-meta">ID: <?php echo $product['id']; ?></div>
                                     <div class="admin-card-meta">Category: <?php echo htmlspecialchars($adminCategory); ?></div>
                                     <div class="admin-card-price">₱<?php echo number_format($product['price'], 2); ?></div>
-                                    <div class="admin-card-stock">Stock: <?php echo (int)$product['stock']; ?></div>
-                                    <div class="admin-card-status"><?php echo htmlspecialchars($product['status']); ?></div>
+                                    <div class="admin-card-stock">Stock: <span class="stock-value <?php echo $isLowStock ? 'low-stock' : ''; ?>"><?php echo (int)$product['stock']; ?></span></div>
+                                    <div class="admin-card-status status-<?php echo $statusClass; ?>"><?php echo strtoupper(htmlspecialchars($product['status'])); ?></div>
                                     <div class="admin-card-actions">
                                         <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
                                         <a href="?delete_id=<?php echo $product['id']; ?>" onclick="return confirm('Are you sure you want to delete this product?')" class="btn-delete"><i class="fas fa-trash"></i></a>
