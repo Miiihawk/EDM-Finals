@@ -206,7 +206,7 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 </div>
             </div>
         </div>
-        
+
         <!-- POS SYSTEM FOR REGULAR USERS -->
         <div class="pos-container">
             <div class="pos-products">
@@ -330,52 +330,96 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                         <option value="stock">Stock</option>
                         <option value="category">Category</option>
                     </select>
+                    <div class="admin-view-toggle">
+                        <button type="button" class="admin-view-btn active" id="tableViewBtn" onclick="setAdminView('table')">
+                            <i class="fas fa-table"></i> Table
+                        </button>
+                        <button type="button" class="admin-view-btn" id="cardViewBtn" onclick="setAdminView('card')">
+                            <i class="fas fa-th-large"></i> Cards
+                        </button>
+                    </div>
                 </div>
 
                 <div class="products-table-container">
-                    <h2>Products Table</h2>
-                    <table class="products-table" id="productsTable">
-                        <thead>
-                            <tr>
-                                <th>Product ID</th>
-                                <th>Product Name</th>
-                                <th>Category</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th>Stock</th>
-                                <th colspan="2">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="admin-table-view" id="adminTableView">
+                        <h2>Products Table</h2>
+                        <table class="products-table" id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>Product ID</th>
+                                    <th>Product Name</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Stock</th>
+                                    <th colspan="2">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                mysqli_data_seek($products_result, 0);
+                                if (mysqli_num_rows($products_result) > 0): 
+                                ?>
+                                    <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
+                                        <tr>
+                                            <td><?php echo $product['id']; ?></td>
+                                            <td><?php echo htmlspecialchars($product['product_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
+                                            <td>₱<?php echo number_format($product['price'], 2); ?></td>
+                                            <td><?php echo $product['status']; ?></td>
+                                            <td><?php echo $product['stock']; ?></td>
+                                            <td>
+                                                <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
+                                            </td>
+                                            <td>
+                                                <a href="?delete_id=<?php echo $product['id']; ?>" 
+                                                   onclick="return confirm('Are you sure you want to delete this product?')" 
+                                                   class="btn-delete"><i class="fas fa-trash"></i></a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="8" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="admin-card-view" id="adminCardView" style="display: none;">
+                        <h2>Products Cards</h2>
+                        <div class="admin-products-grid" id="adminProductsGrid">
                             <?php 
                             mysqli_data_seek($products_result, 0);
-                            if (mysqli_num_rows($products_result) > 0): 
+                            if (mysqli_num_rows($products_result) > 0):
+                                while ($product = mysqli_fetch_assoc($products_result)):
+                                    $adminCategory = $product['category_name'] ?? 'N/A';
                             ?>
-                                <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
-                                    <tr>
-                                        <td><?php echo $product['id']; ?></td>
-                                        <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
-                                        <td>₱<?php echo number_format($product['price'], 2); ?></td>
-                                        <td><?php echo $product['status']; ?></td>
-                                        <td><?php echo $product['stock']; ?></td>
-                                        <td>
-                                            <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
-                                        </td>
-                                        <td>
-                                            <a href="?delete_id=<?php echo $product['id']; ?>" 
-                                               onclick="return confirm('Are you sure you want to delete this product?')" 
-                                               class="btn-delete"><i class="fas fa-trash"></i></a>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
-                                </tr>
+                                <div class="admin-product-card"
+                                     data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
+                                     data-category="<?php echo htmlspecialchars($adminCategory); ?>"
+                                     data-price="<?php echo (float)$product['price']; ?>"
+                                     data-stock="<?php echo (int)$product['stock']; ?>">
+                                    <div class="admin-card-title"><?php echo htmlspecialchars($product['product_name']); ?></div>
+                                    <div class="admin-card-meta">ID: <?php echo $product['id']; ?></div>
+                                    <div class="admin-card-meta">Category: <?php echo htmlspecialchars($adminCategory); ?></div>
+                                    <div class="admin-card-price">₱<?php echo number_format($product['price'], 2); ?></div>
+                                    <div class="admin-card-stock">Stock: <?php echo (int)$product['stock']; ?></div>
+                                    <div class="admin-card-status"><?php echo htmlspecialchars($product['status']); ?></div>
+                                    <div class="admin-card-actions">
+                                        <a href="add_product.php?edit_id=<?php echo $product['id']; ?>" class="btn-update">Update</a>
+                                        <a href="?delete_id=<?php echo $product['id']; ?>" onclick="return confirm('Are you sure you want to delete this product?')" class="btn-delete"><i class="fas fa-trash"></i></a>
+                                    </div>
+                                </div>
+                            <?php
+                                endwhile;
+                            else:
+                            ?>
+                                <div style="text-align: center; color: #777;">No products found. <a href="add_product.php">Add a product</a></div>
                             <?php endif; ?>
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -424,23 +468,25 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         let activeCategory = 'all';
         function updateDateTime() {
             const now = new Date();
-            const options = { 
-                weekday: 'short', 
-                year: 'numeric', 
-                month: 'short', 
+            const options = {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
             };
-            document.getElementById('currentDateTime').textContent = now.toLocaleString('en-US', options);
+            const dateTimeEl = document.getElementById('currentDateTime');
+            if (dateTimeEl) {
+                dateTimeEl.textContent = now.toLocaleString('en-US', options);
+            }
         }
-        
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
 
         function toggleTransactionHistory() {
             const overlay = document.getElementById('transactionHistoryOverlay');
+            if (!overlay) return;
+
             if (overlay.style.display === 'none' || overlay.style.display === '') {
                 overlay.style.display = 'flex';
             } else {
@@ -576,7 +622,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     </div>
                 `;
                 cartSummary.style.display = 'none';
-                paymentSelector.style.display = 'none';
                 checkoutBtn.disabled = true;
                 selectedPaymentMethod = null;
 
@@ -615,14 +660,13 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
                 document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
                 cartSummary.style.display = 'block';
-                paymentSelector.style.display = 'block';
                 checkoutBtn.disabled = false;
 
                 updateCashChange();
             }
         }
 
-        function searchPOSProducts() {
+        function applyPOSFilters() {
             const input = document.getElementById('posSearchInput');
             const filter = input.value.toLowerCase();
             const cards = document.querySelectorAll('.product-card');
@@ -667,11 +711,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
         function checkout() {
             if (cart.length === 0) return;
             
-            if (!selectedPaymentMethod) {
-                alert('Please select a payment method before checking out.');
-                return;
-            }
-            
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             let cashReceived = null;
             let change = null;
@@ -712,7 +751,6 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                     if (data.success) {
                         alert('Sale completed successfully!');
                         cart = [];
-                        selectedPaymentMethod = null;
                         updateCart();
                         setTimeout(() => location.reload(), 500);
                     } else {
