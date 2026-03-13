@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="auth-container">
         <div class="auth-box">
             <div class="auth-logo">
-                <img src="images/logo.jpg" alt="Logo">
+                <img src="images/logo.jpg" alt="Logo" class="app-logo">
             </div>
             <h2>Create Account</h2>
             

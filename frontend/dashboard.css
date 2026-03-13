@@ -45,6 +45,12 @@ body {
   border-radius: 8px;
 }
 
+.app-logo {
+  width: 64px !important;
+  max-width: 64px !important;
+  height: auto !important;
+}
+
 .logo h2 {
   color: #2c3e50;
   font-size: 28px;
