@@ -23,16 +23,34 @@ if (empty($cart) || $total <= 0 || empty($payment_method)) {
 mysqli_begin_transaction($conn);
 
 try {
-    // Insert into sales table
     $user_id = $_SESSION['user_id'];
-    $sales_query = "INSERT INTO sales (user_id, total_amount, payment_method) 
-                    VALUES ($user_id, $total, '$payment_method')";
-    
-    if (!mysqli_query($conn, $sales_query)) {
-        throw new Exception('Failed to create sale record');
+    $customer_id = intval($_POST['customer_id'] ?? 0);
+
+    if ($customer_id <= 0) {
+        $walkInQuery = "SELECT id FROM customers WHERE phone = 'WALKIN-DEFAULT' LIMIT 1";
+        $walkInResult = mysqli_query($conn, $walkInQuery);
+
+        if ($walkInResult && mysqli_num_rows($walkInResult) === 1) {
+            $customer_id = (int) (mysqli_fetch_assoc($walkInResult)['id'] ?? 0);
+        } else {
+            $createWalkIn = "INSERT INTO customers (full_name, phone, email)
+                             VALUES ('Walk-in Customer', 'WALKIN-DEFAULT', NULL)";
+            if (!mysqli_query($conn, $createWalkIn)) {
+                throw new Exception('Failed to create default customer');
+            }
+            $customer_id = (int) mysqli_insert_id($conn);
+        }
     }
-    
-    $sale_id = mysqli_insert_id($conn);
+
+    $tracking_no = 'ORD-' . date('YmdHis') . '-' . strtoupper(substr(md5(uniqid('', true)), 0, 5));
+    $order_query = "INSERT INTO orders (tracking_no, customer_id, created_by, payment_method, subtotal, total_amount)
+                    VALUES ('$tracking_no', $customer_id, $user_id, '$payment_method', $total, $total)";
+
+    if (!mysqli_query($conn, $order_query)) {
+        throw new Exception('Failed to create order record');
+    }
+
+    $order_id = mysqli_insert_id($conn);
     
     // Process each cart item
     foreach ($cart as $item) {
@@ -56,12 +74,11 @@ try {
             throw new Exception("Insufficient stock for {$product['product_name']}");
         }
         
-        // Insert into sale_items
-        $sale_items_query = "INSERT INTO sale_items (sale_id, product_id, quantity, price, subtotal) 
-                            VALUES ($sale_id, $product_id, $quantity, $price, $subtotal)";
-        
-        if (!mysqli_query($conn, $sale_items_query)) {
-            throw new Exception('Failed to add sale item');
+        $order_items_query = "INSERT INTO order_items (order_id, product_id, quantity, price, subtotal)
+                              VALUES ($order_id, $product_id, $quantity, $price, $subtotal)";
+
+        if (!mysqli_query($conn, $order_items_query)) {
+            throw new Exception('Failed to add order item');
         }
         
         // Update stock
@@ -84,8 +101,12 @@ try {
     
     // Commit transaction
     mysqli_commit($conn);
-    
-    echo json_encode(['success' => true, 'sale_id' => $sale_id]);
+
+    echo json_encode([
+        'success' => true,
+        'order_id' => $order_id,
+        'tracking_no' => $tracking_no
+    ]);
     
 } catch (Exception $e) {
     // Rollback on error

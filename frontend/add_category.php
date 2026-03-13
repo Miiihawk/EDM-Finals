@@ -66,7 +66,7 @@ if (isset($_GET['delete_id'])) {
     <title>Add Category</title>
     <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
     <div class="sidebar">
@@ -82,6 +82,9 @@ if (isset($_GET['delete_id'])) {
             </a>
             <a href="manage_users.php">
                 <span><i class="fas fa-users"></i></span> Manage Users
+            </a>
+            <a href="manage_customers.php">
+                <span><i class="fas fa-address-book"></i></span> Manage Customers
             </a>
             <a href="add_product.php">
                 <span><i class="fas fa-plus-circle"></i></span> Add Products

@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <title><?php echo $edit_mode ? 'Edit' : 'Add'; ?> Product</title>
     <link rel="icon" type="image/x-icon" href="images/logo.ico" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
     <div class="sidebar">
@@ -105,6 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php if ($_SESSION['role'] == 'admin'): ?>
             <a href="manage_users.php">
                 <span><i class="fas fa-users"></i></span> Manage Users
+            </a>
+            <a href="manage_customers.php">
+                <span><i class="fas fa-address-book"></i></span> Manage Customers
             </a>
             <?php endif; ?>
             <a href="add_product.php" class="active">

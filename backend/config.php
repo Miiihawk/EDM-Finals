@@ -47,31 +47,6 @@ $createProductsTable = "CREATE TABLE IF NOT EXISTS products (
     ON DELETE CASCADE
 ) ENGINE=InnoDB";
 
-// SALES TABLE
-$createSalesTable = "CREATE TABLE IF NOT EXISTS sales (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    total_amount DECIMAL(10,2) NOT NULL,
-    payment_method VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE
-) ENGINE=InnoDB";
-
-// SALE ITEMS TABLE
-$createSaleItemsTable = "CREATE TABLE IF NOT EXISTS sale_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    sale_id INT NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    subtotal DECIMAL(10,2) NOT NULL,
-    FOREIGN KEY (sale_id) REFERENCES sales(id)
-    ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id)
-    ON DELETE CASCADE
-) ENGINE=InnoDB";
-
 // INVENTORY HISTORY TABLE
 $createInventoryHistoryTable = "CREATE TABLE IF NOT EXISTS inventory_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -86,13 +61,55 @@ $createInventoryHistoryTable = "CREATE TABLE IF NOT EXISTS inventory_history (
     ON DELETE SET NULL
 ) ENGINE=InnoDB";
 
+// CUSTOMERS TABLE
+$createCustomersTable = "CREATE TABLE IF NOT EXISTS customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(120) NOT NULL,
+    phone VARCHAR(20) NOT NULL UNIQUE,
+    email VARCHAR(120) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB";
+
+// ORDERS TABLE
+$createOrdersTable = "CREATE TABLE IF NOT EXISTS orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tracking_no VARCHAR(40) NOT NULL UNIQUE,
+    customer_id INT NOT NULL,
+    created_by INT NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    cash_received DECIMAL(10,2) DEFAULT NULL,
+    cash_change DECIMAL(10,2) DEFAULT NULL,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+    ON DELETE RESTRICT,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+    ON DELETE RESTRICT
+) ENGINE=InnoDB";
+
+// ORDER ITEMS TABLE
+$createOrderItemsTable = "CREATE TABLE IF NOT EXISTS order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE RESTRICT
+) ENGINE=InnoDB";
+
 // Execute queries in correct order
 mysqli_query($conn, $createUsersTable);
 mysqli_query($conn, $createCategoriesTable);
 mysqli_query($conn, $createProductsTable);
-mysqli_query($conn, $createSalesTable);
-mysqli_query($conn, $createSaleItemsTable);
 mysqli_query($conn, $createInventoryHistoryTable);
+mysqli_query($conn, $createCustomersTable);
+mysqli_query($conn, $createOrdersTable);
+mysqli_query($conn, $createOrderItemsTable);
 
 // Start session
 session_start();
