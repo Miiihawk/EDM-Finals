@@ -35,15 +35,7 @@ function getSaleItems($conn, $sale_id) {
     return mysqli_query($conn, $items_query);
 }
 
-$admin_inventory_logs_query = "(SELECT 
-                                    l.product_name,
-                                    l.quantity as change_quantity,
-                                    l.username,
-                                    l.log_time as timestamp,
-                                    l.action as reason
-                                FROM logs l)
-                                UNION ALL
-                                (SELECT 
+$admin_inventory_logs_query = "SELECT 
                                     p.product_name,
                                     ih.change_quantity,
                                     u.username,
@@ -52,8 +44,8 @@ $admin_inventory_logs_query = "(SELECT
                                 FROM inventory_history ih
                                 LEFT JOIN products p ON ih.product_id = p.id
                                 LEFT JOIN users u ON ih.user_id = u.id
-                                WHERE ih.reason != 'Product Updated')
-                                ORDER BY timestamp DESC
+                                WHERE ih.change_quantity != 0
+                                ORDER BY ih.created_at DESC
                                 LIMIT 100";
 $admin_inventory_logs_result = mysqli_query($conn, $admin_inventory_logs_query);
 
@@ -532,6 +524,11 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             }
 
             updateCashChange();
+
+            const checkoutBtn = document.getElementById('checkoutBtn');
+            if (checkoutBtn && cart.length > 0) {
+                checkoutBtn.disabled = false;
+            }
         }
 
         function updateCashChange() {
@@ -624,6 +621,10 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 cartSummary.style.display = 'none';
                 checkoutBtn.disabled = true;
                 selectedPaymentMethod = null;
+                if (paymentSelector) {
+                    paymentSelector.style.display = 'none';
+                }
+                document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('selected'));
 
                 if (cashDetails) cashDetails.style.display = 'none';
                 if (cashAmountInput) cashAmountInput.value = '';
@@ -660,10 +661,17 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
                 document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
                 document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
                 cartSummary.style.display = 'block';
-                checkoutBtn.disabled = false;
+                if (paymentSelector) {
+                    paymentSelector.style.display = 'block';
+                }
+                checkoutBtn.disabled = !selectedPaymentMethod;
 
                 updateCashChange();
             }
+        }
+
+        function searchPOSProducts() {
+            applyPOSFilters();
         }
 
         function applyPOSFilters() {
@@ -703,13 +711,19 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             const buttons = document.querySelectorAll('.category-btn');
             
             buttons.forEach(btn => btn.classList.remove('active'));
-            element.classList.add('active');
+            if (element) {
+                element.classList.add('active');
+            }
             activeCategory = category === 'all' ? 'all' : normalizeCategory(category);
             searchPOSProducts();
         }
 
         function checkout() {
             if (cart.length === 0) return;
+            if (!selectedPaymentMethod) {
+                alert('Please select a payment method.');
+                return;
+            }
             
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             let cashReceived = null;
@@ -769,6 +783,8 @@ $isRegularUser = ($_SESSION['role'] != 'admin');
             nav.classList.toggle('active');
         }
 
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
         initializePOSCardClicks();
         searchPOSProducts();
     </script>

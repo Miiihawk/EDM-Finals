@@ -74,10 +74,12 @@ try {
             throw new Exception('Failed to update stock');
         }
         
-        // Log the sale
-        $log_query = "INSERT INTO logs (product_name, quantity, action, username) 
-                      VALUES ('{$product['product_name']}', -$quantity, 'Sold', '{$_SESSION['username']}')";
-        mysqli_query($conn, $log_query);
+        // Record inventory movement for the sale.
+        $history_query = "INSERT INTO inventory_history (product_id, user_id, change_quantity, reason)
+                          VALUES ($product_id, $user_id, -$quantity, 'Sold')";
+        if (!mysqli_query($conn, $history_query)) {
+            throw new Exception('Failed to record inventory history');
+        }
     }
     
     // Commit transaction
