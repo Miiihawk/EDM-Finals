@@ -1,55 +1,75 @@
 # 9toFive POS System
 
-A modern Point of Sale (POS) system with user authentication, role-based dashboards, and comprehensive product management.
+PHP + MySQL point-of-sale system with role-based access for Admin and User workflows.
 
 ## Quick Start
 
-1. **Start MySQL Server** (XAMPP/WAMP/MAMP)
-2. **Access Application**: `http://localhost/EDM-Finals/frontend/login.php`
+1. Start Apache + MySQL (XAMPP/WAMP/MAMP).
+2. Put this folder in your web root (for example: `C:\xampp\htdocs\EDM-Finals`).
+3. Open: `http://localhost/EDM-Finals/frontend/`
 
-## Project Structure
+## Project Layout
 
 ```
 EDM-Finals/
-├── backend/           # PHP backend logic & database
-│   ├── config.php           # Database connection
-│   ├── process_sale.php     # Sale processing API
-│   ├── logout.php           # Logout handler
-│   ├── generate_hash.php    # Password utility
-│   └── setup.sql            # Database setup
-│
-└── frontend/          # User interface & views
-    ├── *.php                # Page views
-    ├── *.css                # Stylesheets
-    ├── *.js                 # Client scripts
-    └── README.md            # Full documentation
+├── backend/
+│   ├── config.php
+│   ├── setup.sql
+│   ├── sample_data.sql
+│   ├── place_order.php
+│   ├── get_order_details.php
+│   ├── process_sale.php
+│   ├── customer_lookup.php
+│   ├── create_customer.php
+│   ├── create_accounts.php
+│   ├── generate_hash.php
+│   └── logout.php
+└── frontend/
+    ├── index.php
+    ├── login.php
+    ├── signup.php
+    ├── dashboard.php
+    ├── add_product.php
+    ├── add_category.php
+    ├── manage_users.php
+    ├── manage_customers.php
+    ├── css/
+    │   ├── auth.css
+    │   ├── dashboard.css
+    │   ├── pos.css
+    │   ├── manage-customers.css
+    │   └── style.css
+    ├── js/
+    │   └── dashboard.js
+    ├── images/
+    └── README.md
 ```
 
-## Features
+## Core Features
 
-- **Secure Authentication** - BCrypt password hashing
-- **Role-Based Access** - Admin dashboard vs POS interface
-- **Shopping Cart** - Full cart functionality with checkout
-- **Inventory Management** - Real-time stock tracking
-- **Search & Filter** - Find products quickly
-- **Activity Logs** - Track all modifications
-- **Modern UI** - Font Awesome icons, animations
+- Authentication with hashed passwords
+- Role-based dashboard views
+- Product and category management
+- Customer management
+- POS cart and checkout flow
+- Order history/details (with print and PDF)
+- Inventory and activity tracking
 
-## Full Documentation
+## Database
 
-For complete setup instructions, features, and troubleshooting, see:
-**[frontend/README.md](frontend/README.md)**
+Primary tables from `backend/setup.sql`:
 
-## Tech Stack
-
-- **Backend**: PHP 7.x+ with MySQLi
-- **Database**: MySQL 5.7+
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Icons**: Font Awesome 6.5.1
+- `users`
+- `categories`
+- `products`
+- `inventory_history`
+- `customers`
+- `orders`
+- `order_items`
 
 ## Configuration
 
-Edit `backend/config.php` to customize database settings:
+Update `backend/config.php` if needed:
 
 ```php
 define('DB_HOST', 'localhost');
@@ -58,6 +78,10 @@ define('DB_PASS', '');
 define('DB_NAME', 'pos_system');
 ```
 
+## Documentation
+
+Detailed frontend usage and setup are in [frontend/README.md](frontend/README.md).
+
 ---
 
-**Version**: 1.0 | **Updated**: March 2026
+Updated: March 2026
