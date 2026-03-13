@@ -8,7 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = mysqli_real_escape_string($conn, $_POST['username']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    $role = mysqli_real_escape_string($conn, $_POST['role']);
+    // $role = mysqli_real_escape_string($conn, $_POST['role']);
+    $role = 'user'; // Default role is user, you can change this based on your requirements
     
     if ($password !== $confirm_password) {
         $error = 'Passwords do not match';
@@ -70,13 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <input type="password" id="confirm_password" name="confirm_password" required>
                 </div>
                 
-                <div class="form-group">
+                <!-- <div class="form-group">
                     <label for="role">Role</label>
                     <select id="role" name="role" required>
                         <option value="user">User</option>
                         <option value="admin">Admin</option>
                     </select>
-                </div>
+                </div> -->
                 
                 <button type="submit" class="btn-primary">Sign Up</button>
             </form>
