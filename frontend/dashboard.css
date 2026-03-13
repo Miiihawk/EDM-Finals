@@ -164,6 +164,28 @@ body {
   gap: 15px;
 }
 
+.admin-view-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-view-btn {
+  padding: 10px 12px;
+  border: 1px solid #d9e1ee;
+  background: #ffffff;
+  color: #4f6078;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.admin-view-btn.active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
 .search-bar input {
   flex: 1;
   padding: 12px;
@@ -200,6 +222,58 @@ body {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 15px;
+}
+
+.admin-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.admin-product-card {
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-card-title {
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.admin-card-meta,
+.admin-card-stock {
+  color: #5a6c7d;
+  font-size: 13px;
+}
+
+.admin-card-price {
+  color: #667eea;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.admin-card-status {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4751a8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .products-table {
@@ -905,6 +979,14 @@ body {
   .search-bar {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .admin-view-toggle {
+    width: 100%;
+  }
+
+  .admin-view-btn {
+    flex: 1;
   }
 
   .search-bar input,
