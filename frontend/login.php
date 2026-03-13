@@ -1,5 +1,6 @@
 <?php
 require_once '../backend/config.php';
+require_once '../backend/create_accounts.php';
 
 $error = '';
 

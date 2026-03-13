@@ -13,6 +13,7 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
+
 // Create tables if they don't exist
 
 // USERS TABLE
