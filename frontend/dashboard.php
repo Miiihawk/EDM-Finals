@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id'])) {
 
 $isRegularUser = ($_SESSION['role'] != 'admin');
 
-// Backward compatibility: old databases may not have categories.code_prefix yet.
 function hasCategoryCodePrefixColumn(mysqli $conn): bool {
      $result = mysqli_query($conn, "SHOW COLUMNS FROM categories LIKE 'code_prefix'");
      return $result && mysqli_num_rows($result) > 0;
@@ -340,6 +339,13 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                     while ($product = mysqli_fetch_assoc($products_result)): 
                         $isOutOfStock = $product['stock'] <= 0;
                         $category = $product['category_name'] ?? 'Uncategorized';
+                        $productImage = '';
+                        if (!empty($product['image_blob'])) {
+                            $mime = !empty($product['image_mime']) ? (string)$product['image_mime'] : 'image/jpeg';
+                            $productImage = 'data:' . $mime . ';base64,' . base64_encode($product['image_blob']);
+                        } elseif (!empty($product['image_path'])) {
+                            $productImage = trim((string)$product['image_path']);
+                        }
                         $productCode = !empty($product['product_code'] ?? '')
                             ? strtoupper((string)$product['product_code'])
                             : buildProductCode($product['id'], $category, (string)($product['code_prefix'] ?? ''));
@@ -352,18 +358,22 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                              data-code="<?php echo htmlspecialchars($productCode); ?>"
                                 data-stock="<?php echo (int)$product['stock']; ?>"
                              data-clickable="<?php echo $isOutOfStock ? '0' : '1'; ?>">
-                            <div class="product-icon">
-                                <?php
-                                $icons = [
-                                    'Tools' => '<i class="fas fa-hammer"></i>',
-                                    'Paint' => '<i class="fas fa-paint-roller"></i>',
-                                    'Electrical' => '<i class="fas fa-bolt"></i>',
-                                    'Plumbing' => '<i class="fas fa-wrench"></i>',
-                                    'Fasteners' => '<i class="fas fa-screwdriver"></i>'
-                                ];
-                                echo $icons[$category] ?? '<i class="fas fa-box"></i>';
-                                ?>
-                            </div>
+                            <?php if ($productImage !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($productImage); ?>" alt="<?php echo htmlspecialchars($product['product_name']); ?>" class="product-photo">
+                            <?php else: ?>
+                                <div class="product-icon">
+                                    <?php
+                                    $icons = [
+                                        'Tools' => '<i class="fas fa-hammer"></i>',
+                                        'Paint' => '<i class="fas fa-paint-roller"></i>',
+                                        'Electrical' => '<i class="fas fa-bolt"></i>',
+                                        'Plumbing' => '<i class="fas fa-wrench"></i>',
+                                        'Fasteners' => '<i class="fas fa-screwdriver"></i>'
+                                    ];
+                                    echo $icons[$category] ?? '<i class="fas fa-box"></i>';
+                                    ?>
+                                </div>
+                            <?php endif; ?>
                             <div class="product-name"><?php echo htmlspecialchars($product['product_name']); ?></div>
                             <div class="product-category"><?php echo htmlspecialchars($category); ?></div>
                             <div class="product-code">Code: <?php echo htmlspecialchars($productCode); ?></div>

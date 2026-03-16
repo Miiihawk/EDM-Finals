@@ -27,6 +27,75 @@ function hasProductCodeColumn(mysqli $conn): bool {
     return $result && mysqli_num_rows($result) > 0;
 }
 
+function hasProductImagePathColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM products LIKE 'image_path'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+function hasProductImageBlobColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM products LIKE 'image_blob'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+function hasProductImageMimeColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM products LIKE 'image_mime'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+function ensureProductImageColumns(mysqli $conn): bool {
+    if (!hasProductImagePathColumn($conn)) {
+        mysqli_query($conn, "ALTER TABLE products ADD COLUMN image_path VARCHAR(255) DEFAULT NULL AFTER product_code");
+    }
+
+    if (!hasProductImageBlobColumn($conn)) {
+        mysqli_query($conn, "ALTER TABLE products ADD COLUMN image_blob LONGBLOB DEFAULT NULL AFTER image_path");
+    }
+
+    if (!hasProductImageMimeColumn($conn)) {
+        mysqli_query($conn, "ALTER TABLE products ADD COLUMN image_mime VARCHAR(50) DEFAULT NULL AFTER image_blob");
+    }
+
+    return hasProductImageBlobColumn($conn) && hasProductImageMimeColumn($conn);
+}
+
+function saveUploadedProductImageToDatabase(mysqli $conn, array $file, int $productId): bool {
+    if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+        return true;
+    }
+
+    if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+        return false;
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if ($imageInfo === false) {
+        return false;
+    }
+
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    $mime = (string)($imageInfo['mime'] ?? '');
+    if (!in_array($mime, $allowedMimes, true)) {
+        return false;
+    }
+
+    $binary = @file_get_contents($file['tmp_name']);
+    if ($binary === false) {
+        return false;
+    }
+
+    $stmt = mysqli_prepare($conn, "UPDATE products SET image_blob = ?, image_mime = ? WHERE id = ?");
+    if (!$stmt) {
+        return false;
+    }
+
+    $nullBlob = null;
+    mysqli_stmt_bind_param($stmt, 'bsi', $nullBlob, $mime, $productId);
+    mysqli_stmt_send_long_data($stmt, 0, $binary);
+    $ok = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    return $ok;
+}
+
 function fetchCategoryCodeContext(mysqli $conn, int $categoryId, bool $hasCategoryCodePrefix): array {
     $categoryId = (int)$categoryId;
     $query = $hasCategoryCodePrefix
@@ -45,6 +114,7 @@ function fetchCategoryCodeContext(mysqli $conn, int $categoryId, bool $hasCatego
 
 $hasCategoryCodePrefix = hasCategoryCodePrefixColumn($conn);
 $hasProductCode = hasProductCodeColumn($conn);
+$hasProductImage = ensureProductImageColumns($conn);
 
 $edit_mode = false;
 $product = null;
@@ -105,6 +175,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         WHERE id = $edit_id";
         
         if (mysqli_query($conn, $update_query)) {
+            if ($hasProductImage) {
+                saveUploadedProductImageToDatabase($conn, $_FILES['product_image'] ?? [], $edit_id);
+            }
+
             if ($hasProductCode) {
                 $categoryData = fetchCategoryCodeContext($conn, $category_id, $hasCategoryCodePrefix);
                 $computedCode = buildProductCode(
@@ -134,6 +208,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if (mysqli_query($conn, $insert_query)) {
             $product_id = mysqli_insert_id($conn);
+
+            if ($hasProductImage) {
+                saveUploadedProductImageToDatabase($conn, $_FILES['product_image'] ?? [], $product_id);
+            }
 
             if ($hasProductCode) {
                 $categoryData = fetchCategoryCodeContext($conn, $category_id, $hasCategoryCodePrefix);
@@ -218,19 +296,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <?php if ($message): ?>
                     <div class="alert"><?php echo $message; ?></div>
                 <?php endif; ?>
-                
-                <form method="POST" action="" class="product-form-wide">
+
+                <form method="POST" action="" class="product-form-wide" enctype="multipart/form-data">
                     <?php if ($edit_mode): ?>
                         <input type="hidden" name="edit_id" value="<?php echo $product['id']; ?>">
                     <?php endif; ?>
-                    
+
                     <div class="form-group">
                         <label for="product_name">Product Name</label>
-                        <input type="text" id="product_name" name="product_name" 
-                               value="<?php echo $edit_mode ? htmlspecialchars($product['product_name']) : ''; ?>" 
+                        <input type="text" id="product_name" name="product_name"
+                               value="<?php echo $edit_mode ? htmlspecialchars($product['product_name']) : ''; ?>"
                                required>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="category_id">Category</label>
                         <select id="category_id" name="category_id" required>
@@ -266,21 +344,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <?php endif; ?>
                         </small>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="price">Price (₱)</label>
-                        <input type="number" id="price" name="price" step="0.01" min="0" 
-                               value="<?php echo $edit_mode ? $product['price'] : ''; ?>" 
+                        <input type="number" id="price" name="price" step="0.01" min="0"
+                               value="<?php echo $edit_mode ? $product['price'] : ''; ?>"
                                required>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="stock">Stock</label>
-                        <input type="number" id="stock" name="stock" min="0" 
-                               value="<?php echo $edit_mode ? $product['stock'] : ''; ?>" 
+                        <input type="number" id="stock" name="stock" min="0"
+                               value="<?php echo $edit_mode ? $product['stock'] : ''; ?>"
                                required>
                     </div>
-                    
+
+                    <div class="form-group">
+                        <label for="product_image">Product Photo</label>
+                        <input type="file" id="product_image" name="product_image" accept="image/png,image/jpeg,image/webp,image/gif">
+                        <?php if ($edit_mode && (!empty($product['image_blob']) || !empty($product['image_path']))): ?>
+                            <small class="code-preview-hint">Current photo is stored in the database.</small>
+                        <?php else: ?>
+                            <small class="code-preview-hint">Optional. Recommended size: 500x500.</small>
+                        <?php endif; ?>
+                    </div>
+
                     <div class="form-actions">
                         <button type="submit" class="btn-primary">
                             <?php echo $edit_mode ? 'Update Product' : 'Add Product'; ?>

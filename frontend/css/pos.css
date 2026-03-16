@@ -288,6 +288,16 @@
   color: white;
 }
 
+.product-photo {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 10px;
+  border: 1px solid #e4e9f2;
+}
+
 .product-name {
   font-weight: 600;
   color: #2c3e50;
