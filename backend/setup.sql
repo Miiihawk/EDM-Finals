@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     category_name VARCHAR(100) NOT NULL UNIQUE,
+    code_prefix VARCHAR(3) DEFAULT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_name VARCHAR(100) NOT NULL,
     category_id INT,
+    product_code VARCHAR(10) DEFAULT NULL UNIQUE,
     price DECIMAL(10,2) NOT NULL,
     stock INT DEFAULT 0,
     status ENUM('Available', 'Out of Stock') DEFAULT 'Available',
@@ -83,4 +85,3 @@ CREATE TABLE IF NOT EXISTS order_items (
     FOREIGN KEY (product_id) REFERENCES products(id)
     ON DELETE RESTRICT
 );
-

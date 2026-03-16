@@ -52,8 +52,17 @@ EDM-Finals/
 - Product and category management
 - Customer management
 - POS cart and checkout flow
+- DFA product-code validation with cashier quick-add using the `AAA999` pattern
+- DFA receipt-line validation using the `ITEMCODE-QTY-PRICE` pattern
+- DFA promo validation using the `AAAA##` pattern with discounts from `05` to `30`
 - Order history/details (with print and PDF)
 - Inventory and activity tracking
+
+## DFA Rules Used In POS
+
+- Product code: 3 uppercase letters followed by 3 digits. Example: `TOO001`
+- Receipt line: product code, dash, quantity, dash, price with 2 decimal places. Example: `TOO001-2-149.50`
+- Promo code: 4 uppercase letters followed by a 2-digit discount percentage from `05` to `30`. Example: `SAVE10`
 
 ## Database
 

@@ -9,25 +9,66 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
 $message = '';
 $messageType = '';
 
+function derivePrefix(string $name): string {
+    $letters = preg_replace('/[^A-Z]/', '', strtoupper($name));
+    return substr(str_pad($letters ?: 'CAT', 3, 'X'), 0, 3);
+}
+
+function hasCategoryCodePrefixColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM categories LIKE 'code_prefix'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+$hasCategoryCodePrefix = hasCategoryCodePrefixColumn($conn);
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $category_name = mysqli_real_escape_string($conn, trim($_POST['category_name']));
-    
+
+    // Sanitise code_prefix: letters only, uppercase, max 3 characters
+    $raw_prefix = strtoupper(preg_replace('/[^A-Za-z]/', '', trim($_POST['code_prefix'] ?? '')));
+    $raw_prefix = substr($raw_prefix, 0, 3);
+    // Auto-generate if blank
+    if ($raw_prefix === '') {
+        $raw_prefix = derivePrefix($category_name);
+    }
+    $code_prefix_safe = mysqli_real_escape_string($conn, $raw_prefix);
+
     if (!empty($category_name)) {
+        // Check name uniqueness
         $check_query = "SELECT id FROM categories WHERE category_name = '$category_name'";
         $check_result = mysqli_query($conn, $check_query);
-        
+
         if (mysqli_num_rows($check_result) > 0) {
             $message = 'Category already exists!';
             $messageType = 'error';
         } else {
-            $insert_query = "INSERT INTO categories (category_name) VALUES ('$category_name')";
-            
-            if (mysqli_query($conn, $insert_query)) {
-                $message = 'Category added successfully!';
-                $messageType = 'success';
+            if ($hasCategoryCodePrefix) {
+                // Check prefix uniqueness across existing categories
+                $check_prefix_query = "SELECT id, category_name FROM categories WHERE code_prefix = '$code_prefix_safe'";
+                $check_prefix_result = mysqli_query($conn, $check_prefix_query);
+                if ($check_prefix_result && mysqli_num_rows($check_prefix_result) > 0) {
+                    $conflict = mysqli_fetch_assoc($check_prefix_result);
+                    $message = "Prefix '$raw_prefix' is already used by category '" . htmlspecialchars($conflict['category_name']) . "'. Choose a different prefix.";
+                    $messageType = 'error';
+                } else {
+                    $insert_query = "INSERT INTO categories (category_name, code_prefix) VALUES ('$category_name', '$code_prefix_safe')";
+                    if (mysqli_query($conn, $insert_query)) {
+                        $message = "Category added with code prefix '$raw_prefix'!";
+                        $messageType = 'success';
+                    } else {
+                        $message = 'Error adding category: ' . mysqli_error($conn);
+                        $messageType = 'error';
+                    }
+                }
             } else {
-                $message = 'Error adding category: ' . mysqli_error($conn);
-                $messageType = 'error';
+                $insert_query = "INSERT INTO categories (category_name) VALUES ('$category_name')";
+                if (mysqli_query($conn, $insert_query)) {
+                    $message = "Category added. (Run DB migration to persist custom prefixes.)";
+                    $messageType = 'success';
+                } else {
+                    $message = 'Error adding category: ' . mysqli_error($conn);
+                    $messageType = 'error';
+                }
             }
         }
     } else {
@@ -122,11 +163,20 @@ if (isset($_GET['delete_id'])) {
                     <form method="POST" action="" class="category-form">
                         <div class="form-group">
                             <label for="category_name">Category Name</label>
-                            <input type="text" id="category_name" name="category_name" 
-                                   placeholder="e.g., Snacks, Beverages" 
+                            <input type="text" id="category_name" name="category_name"
+                                   placeholder="e.g., Snacks, Beverages"
                                    required>
                         </div>
-                        
+
+                        <div class="form-group">
+                            <label for="code_prefix">Product Code Prefix <span style="font-weight:400;font-size:12px;color:#888;">(3 letters, auto-generated if blank)</span></label>
+                            <input type="text" id="code_prefix" name="code_prefix"
+                                   placeholder="e.g., SNA"
+                                   maxlength="3"
+                                   autocomplete="off">
+                            <small class="field-hint" id="codePrefixHint">Will be auto-generated from category name if left blank.</small>
+                        </div>
+
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">
                                 <i class="fas fa-plus"></i> Add Category
@@ -152,6 +202,12 @@ if (isset($_GET['delete_id'])) {
                                     </div>
                                     <div class="category-card-info">
                                         <h3><?php echo htmlspecialchars($category['category_name']); ?></h3>
+                                        <?php
+                                        $displayPrefix = !empty($category['code_prefix'] ?? '')
+                                            ? strtoupper((string)$category['code_prefix'])
+                                            : derivePrefix($category['category_name']);
+                                        ?>
+                                        <p class="category-prefix">Code Prefix: <strong><?php echo htmlspecialchars($displayPrefix); ?></strong> &rarr; e.g. <?php echo htmlspecialchars($displayPrefix); ?>001</p>
                                         <p class="category-count"><?php echo $count_data['count']; ?> product(s)</p>
                                         <p class="category-date">Created: <?php echo date('M d, Y', strtotime($category['created_at'])); ?></p>
                                     </div>
@@ -181,17 +237,6 @@ if (isset($_GET['delete_id'])) {
         </div>
     </div>
 
-    <script>
-        function toggleMobileMenu() {
-            const nav = document.getElementById('mobileNav');
-            nav.classList.toggle('active');
-        }
-
-        function deleteCategory(id, name) {
-            if (confirm(`Are you sure you want to delete the category "${name}"?`)) {
-                window.location.href = `add_category.php?delete_id=${id}`;
-            }
-        }
-    </script>
+    <script src="js/add_category.js"></script>
 </body>
 </html>

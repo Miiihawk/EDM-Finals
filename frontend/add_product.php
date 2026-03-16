@@ -6,16 +6,73 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+function buildProductCode(int $productId, string $categoryName = '', string $codePrefix = ''): string {
+    if ($codePrefix !== '') {
+        $prefix = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $codePrefix), 0, 3));
+        $prefix = str_pad($prefix, 3, 'X');
+    } else {
+        $letters = preg_replace('/[^A-Z]/', '', strtoupper($categoryName));
+        $prefix  = substr(str_pad($letters ?: 'ITM', 3, 'X'), 0, 3);
+    }
+    return $prefix . str_pad((string)$productId, 3, '0', STR_PAD_LEFT);
+}
+
+function hasCategoryCodePrefixColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM categories LIKE 'code_prefix'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+function hasProductCodeColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM products LIKE 'product_code'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+function fetchCategoryCodeContext(mysqli $conn, int $categoryId, bool $hasCategoryCodePrefix): array {
+    $categoryId = (int)$categoryId;
+    $query = $hasCategoryCodePrefix
+        ? "SELECT category_name, code_prefix FROM categories WHERE id = $categoryId LIMIT 1"
+        : "SELECT category_name, '' AS code_prefix FROM categories WHERE id = $categoryId LIMIT 1";
+    $result = mysqli_query($conn, $query);
+    if ($result && mysqli_num_rows($result) === 1) {
+        return mysqli_fetch_assoc($result);
+    }
+
+    return [
+        'category_name' => '',
+        'code_prefix' => ''
+    ];
+}
+
+$hasCategoryCodePrefix = hasCategoryCodePrefixColumn($conn);
+$hasProductCode = hasProductCodeColumn($conn);
+
 $edit_mode = false;
 $product = null;
 $message = '';
 
-$categories_query = "SELECT * FROM categories ORDER BY category_name ASC";
+$categories_query = $hasCategoryCodePrefix
+    ? "SELECT id, category_name, code_prefix FROM categories ORDER BY category_name ASC"
+    : "SELECT id, category_name, '' AS code_prefix FROM categories ORDER BY category_name ASC";
 $categories_result = mysqli_query($conn, $categories_query);
+
+// Collect categories into an array so the result can be used for both the
+// HTML <select> and the JSON data injected for the JS preview.
+$categories_list = [];
+if ($categories_result) {
+    while ($cat_row = mysqli_fetch_assoc($categories_result)) {
+        $categories_list[] = [
+            'id'            => (int)$cat_row['id'],
+            'category_name' => $cat_row['category_name'],
+            'code_prefix'   => $cat_row['code_prefix'] ?? '',
+        ];
+    }
+}
 
 if (isset($_GET['edit_id'])) {
     $edit_id = intval($_GET['edit_id']);
-    $edit_query = "SELECT p.*, c.category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $edit_id";
+    $edit_query = $hasCategoryCodePrefix
+        ? "SELECT p.*, c.category_name, c.code_prefix FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $edit_id"
+        : "SELECT p.*, c.category_name, '' AS code_prefix FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $edit_id";
     $edit_result = mysqli_query($conn, $edit_query);
     
     if (mysqli_num_rows($edit_result) == 1) {
@@ -48,6 +105,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         WHERE id = $edit_id";
         
         if (mysqli_query($conn, $update_query)) {
+            if ($hasProductCode) {
+                $categoryData = fetchCategoryCodeContext($conn, $category_id, $hasCategoryCodePrefix);
+                $computedCode = buildProductCode(
+                    $edit_id,
+                    (string)($categoryData['category_name'] ?? ''),
+                    (string)($categoryData['code_prefix'] ?? '')
+                );
+                $safeCode = mysqli_real_escape_string($conn, $computedCode);
+                mysqli_query($conn, "UPDATE products SET product_code = '$safeCode' WHERE id = $edit_id");
+            }
+
             if ($stock_diff != 0) {
                 $history_query = "INSERT INTO inventory_history (product_id, user_id, change_quantity, reason) 
                                  VALUES ($edit_id, {$_SESSION['user_id']}, $stock_diff, 'Product Updated')";
@@ -66,6 +134,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if (mysqli_query($conn, $insert_query)) {
             $product_id = mysqli_insert_id($conn);
+
+            if ($hasProductCode) {
+                $categoryData = fetchCategoryCodeContext($conn, $category_id, $hasCategoryCodePrefix);
+                $computedCode = buildProductCode(
+                    $product_id,
+                    (string)($categoryData['category_name'] ?? ''),
+                    (string)($categoryData['code_prefix'] ?? '')
+                );
+                $safeCode = mysqli_real_escape_string($conn, $computedCode);
+                mysqli_query($conn, "UPDATE products SET product_code = '$safeCode' WHERE id = $product_id");
+            }
             
             $history_query = "INSERT INTO inventory_history (product_id, user_id, change_quantity, reason) 
                              VALUES ($product_id, {$_SESSION['user_id']}, $stock, 'Product Added')";
@@ -156,16 +235,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <label for="category_id">Category</label>
                         <select id="category_id" name="category_id" required>
                             <option value="">Select Category</option>
-                            <?php 
-                            mysqli_data_seek($categories_result, 0);
-                            while ($cat = mysqli_fetch_assoc($categories_result)): 
-                            ?>
-                                <option value="<?php echo $cat['id']; ?>" 
+                            <?php foreach ($categories_list as $cat): ?>
+                                <option value="<?php echo $cat['id']; ?>"
                                     <?php echo ($edit_mode && $product['category_id'] == $cat['id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($cat['category_name']); ?>
                                 </option>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Product Code Preview</label>
+                        <input type="text" id="productCodePreview" readonly
+                               class="code-preview-field"
+                               placeholder="Select a category first"
+                               value="<?php
+                                   if ($edit_mode) {
+                                       echo htmlspecialchars(buildProductCode(
+                                           (int)$product['id'],
+                                           (string)($product['category_name'] ?? ''),
+                                           (string)($product['code_prefix'] ?? '')
+                                       ));
+                                   }
+                               ?>">
+                        <small class="code-preview-hint" id="codePreviewHint">
+                            <?php if ($edit_mode): ?>
+                                This product&apos;s code (prefix from category + product ID).
+                            <?php else: ?>
+                                Select a category to preview the product code.
+                            <?php endif; ?>
+                        </small>
                     </div>
                     
                     <div class="form-group">
@@ -194,10 +293,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script>
-        function toggleMobileMenu() {
-            const nav = document.getElementById('mobileNav');
-            nav.classList.toggle('active');
-        }
+    // PHP-injected data for the product code preview (used by add_product.js)
+    window.PRODUCT_DATA = {
+        categories:         <?php echo json_encode($categories_list, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+        isEditMode:         <?php echo $edit_mode ? 'true' : 'false'; ?>,
+        productId:          <?php echo $edit_mode ? (int)$product['id'] : 0; ?>,
+        selectedCategoryId: <?php echo $edit_mode ? (int)$product['category_id'] : 0; ?>
+    };
     </script>
+    <script src="js/add_product.js"></script>
 </body>
 </html>

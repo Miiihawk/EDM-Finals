@@ -1,6 +1,13 @@
 let adminView = "table";
 let activeAdminOrder = null;
 
+function toggleMobileMenu() {
+  const nav = document.getElementById("mobileNav");
+  if (nav) {
+    nav.classList.toggle("active");
+  }
+}
+
 function setAdminSection(section) {
   const productsSection = document.getElementById("adminProductsSection");
   const ordersSection = document.getElementById("adminOrdersSection");
@@ -111,13 +118,13 @@ function sortTableView(sortBy) {
       }
       case "price": {
         const aValue = parseFloat(
-          (a.cells[3]?.textContent || "0")
+          (a.cells[4]?.textContent || "0")
             .replace("₱", "")
             .replace(/,/g, "")
             .trim(),
         );
         const bValue = parseFloat(
-          (b.cells[3]?.textContent || "0")
+          (b.cells[4]?.textContent || "0")
             .replace("₱", "")
             .replace(/,/g, "")
             .trim(),
@@ -125,8 +132,8 @@ function sortTableView(sortBy) {
         return aValue - bValue;
       }
       case "stock": {
-        const aValue = parseInt((a.cells[5]?.textContent || "0").trim(), 10);
-        const bValue = parseInt((b.cells[5]?.textContent || "0").trim(), 10);
+        const aValue = parseInt((a.cells[6]?.textContent || "0").trim(), 10);
+        const bValue = parseInt((b.cells[6]?.textContent || "0").trim(), 10);
         return aValue - bValue;
       }
       case "category": {
@@ -216,6 +223,7 @@ function buildAdminOrderHtml(order, items) {
       (item) => `
       <tr>
         <td>${item.product_name || "N/A"}</td>
+        <td>${item.product_code || "N/A"}</td>
         <td>${item.quantity}</td>
         <td>₱${Number(item.price || 0).toFixed(2)}</td>
         <td>₱${Number(item.subtotal || 0).toFixed(2)}</td>
@@ -250,7 +258,7 @@ function buildAdminOrderHtml(order, items) {
 
     <h4 style="margin-top:12px;">Products</h4>
     <table class="summary-products-table">
-      <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+      <thead><tr><th>Item</th><th>Code</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
       <tbody>${itemRows}</tbody>
     </table>
   `;
@@ -308,7 +316,7 @@ function escapeHtml(text) {
 function getCompanyDetails() {
   return {
     name: "9toFive Convenience Store",
-    address1: "#9 Rizal Street, Barangay Central, Philippines",
+    address1: "94 Kamuning Rd, Diliman, Quezon City, 1103 Metro Manila",
     address2: "9toFive Retail Solutions Inc.",
   };
 }
@@ -323,6 +331,7 @@ function buildInvoiceHtml(order, items) {
         <tr>
           <td>${index + 1}</td>
           <td>${escapeHtml(item.product_name || "N/A")}</td>
+          <td>${escapeHtml(item.product_code || "N/A")}</td>
           <td>${formatCurrency(item.price)}</td>
           <td>${item.quantity}</td>
           <td><strong>${formatCurrency(subtotal)}</strong></td>
@@ -381,6 +390,7 @@ function buildInvoiceHtml(order, items) {
             <tr>
               <th>ID</th>
               <th>Product Name</th>
+              <th>Product Code</th>
               <th>Price</th>
               <th>Quantity</th>
               <th>Total Price</th>
@@ -483,11 +493,12 @@ function downloadAdminOrderPdf() {
     y += 3;
   }
 
-  const col = { id: 14, name: 26, price: 132, qty: 158, total: 181 };
+  const col = { id: 14, name: 26, code: 96, price: 126, qty: 156, total: 181 };
   doc.setLineWidth(0.2);
   doc.line(leftX, y - 3, rightX, y - 3);
   doc.text("ID", col.id, y);
   doc.text("Product Name", col.name, y);
+  doc.text("Code", col.code, y);
   doc.text("Price", col.price, y);
   doc.text("Quantity", col.qty, y);
   doc.text("Total Price", col.total, y);
@@ -498,6 +509,7 @@ function downloadAdminOrderPdf() {
   items.forEach((item, index) => {
     doc.text(String(index + 1), col.id, y);
     doc.text(String(item.product_name || "N/A"), col.name, y);
+    doc.text(String(item.product_code || "N/A"), col.code, y);
     doc.text(formatCurrency(item.price), col.price, y);
     doc.text(String(item.quantity), col.qty, y);
     doc.text(formatCurrency(item.subtotal), col.total, y);
