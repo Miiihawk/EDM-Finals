@@ -8,17 +8,51 @@ if (!isset($_SESSION['user_id'])) {
 
 $isRegularUser = ($_SESSION['role'] != 'admin');
 
-$products_query = "SELECT p.*, c.category_name 
-                   FROM products p 
-                   LEFT JOIN categories c ON p.category_id = c.id 
-                   ORDER BY p.id ASC";
+function hasCategoryCodePrefixColumn(mysqli $conn): bool {
+     $result = mysqli_query($conn, "SHOW COLUMNS FROM categories LIKE 'code_prefix'");
+     return $result && mysqli_num_rows($result) > 0;
+}
+
+function hasProductCodeColumn(mysqli $conn): bool {
+    $result = mysqli_query($conn, "SHOW COLUMNS FROM products LIKE 'product_code'");
+    return $result && mysqli_num_rows($result) > 0;
+}
+
+$hasCategoryCodePrefix = hasCategoryCodePrefixColumn($conn);
+$hasProductCode = hasProductCodeColumn($conn);
+
+$products_query = $hasCategoryCodePrefix
+     ? ($hasProductCode
+         ? "SELECT p.*, c.category_name, c.code_prefix
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         ORDER BY p.id ASC"
+         : "SELECT p.*, '' AS product_code, c.category_name, c.code_prefix
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         ORDER BY p.id ASC")
+     : ($hasProductCode
+         ? "SELECT p.*, c.category_name, '' AS code_prefix
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         ORDER BY p.id ASC"
+         : "SELECT p.*, '' AS product_code, c.category_name, '' AS code_prefix
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         ORDER BY p.id ASC");
 $products_result = mysqli_query($conn, $products_query);
 
-$categories_query = "SELECT c.category_name, COUNT(p.id) AS product_count
-                     FROM categories c
-                     LEFT JOIN products p ON c.id = p.category_id
-                     GROUP BY c.id, c.category_name
-                     ORDER BY c.category_name";
+$categories_query = $hasCategoryCodePrefix
+     ? "SELECT c.id, c.category_name, c.code_prefix, COUNT(p.id) AS product_count
+         FROM categories c
+         LEFT JOIN products p ON c.id = p.category_id
+         GROUP BY c.id, c.category_name, c.code_prefix
+         ORDER BY c.category_name"
+     : "SELECT c.id, c.category_name, NULL AS code_prefix, COUNT(p.id) AS product_count
+         FROM categories c
+         LEFT JOIN products p ON c.id = p.category_id
+         GROUP BY c.id, c.category_name
+         ORDER BY c.category_name";
 $categories_result = mysqli_query($conn, $categories_query);
 
 $user_orders_query = "SELECT o.id, o.tracking_no, o.payment_method, o.total_amount, o.order_date
@@ -48,6 +82,23 @@ function getOrderItems($conn, $order_id) {
                     LEFT JOIN products p ON oi.product_id = p.id
                     WHERE oi.order_id = $order_id";
     return mysqli_query($conn, $items_query);
+}
+
+function buildProductCode(int $productId, string $categoryName = '', string $codePrefix = ''): string {
+    if ($codePrefix !== '') {
+        // Use the category's stored prefix; strip non-letters, uppercase, pad to 3.
+        $prefix = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $codePrefix), 0, 3));
+        $prefix = str_pad($prefix, 3, 'X');
+    } else {
+        // Auto-derive prefix from the first 3 uppercase letters of the category name.
+        $lettersOnly = preg_replace('/[^A-Z]/', '', strtoupper((string)$categoryName));
+        if ($lettersOnly === '') {
+            $lettersOnly = 'ITM';
+        }
+        $prefix = substr(str_pad($lettersOnly, 3, 'X'), 0, 3);
+    }
+    $suffix = str_pad((string)((int)$productId), 3, '0', STR_PAD_LEFT);
+    return $prefix . $suffix;
 }
 
 $admin_inventory_logs_query = "SELECT 
@@ -260,7 +311,13 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                         <i class="fas fa-search"></i>
                         <input type="text" id="posSearchInput" placeholder="Search products..." onkeyup="searchPOSProducts()">
                     </div>
+                    <div class="pos-search-bar pos-code-bar">
+                        <i class="fas fa-barcode"></i>
+                        <input type="text" id="productCodeInput" placeholder="Scan or Enter Product Code" maxlength="6" oninput="handleProductCodeInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();addProductByCode();}">
+                    </div>
+                    <input type="number" id="productCodeQuantity" class="pos-qty-input" min="1" max="99" value="1" aria-label="Quantity">
                 </div>
+                <div class="product-code-feedback idle" id="productCodeStatus">Enter code in AAA999 format.</div>
                 
                 <div class="category-filter">
                     <button type="button" class="category-btn active" onclick="filterCategory('all', this)">All</button>
@@ -282,28 +339,44 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                     while ($product = mysqli_fetch_assoc($products_result)): 
                         $isOutOfStock = $product['stock'] <= 0;
                         $category = $product['category_name'] ?? 'Uncategorized';
+                        $productImage = '';
+                        if (!empty($product['image_blob'])) {
+                            $mime = !empty($product['image_mime']) ? (string)$product['image_mime'] : 'image/jpeg';
+                            $productImage = 'data:' . $mime . ';base64,' . base64_encode($product['image_blob']);
+                        } elseif (!empty($product['image_path'])) {
+                            $productImage = trim((string)$product['image_path']);
+                        }
+                        $productCode = !empty($product['product_code'] ?? '')
+                            ? strtoupper((string)$product['product_code'])
+                            : buildProductCode($product['id'], $category, (string)($product['code_prefix'] ?? ''));
                     ?>
                         <div class="product-card <?php echo $isOutOfStock ? 'out-of-stock' : ''; ?>"
                              data-id="<?php echo (int)$product['id']; ?>"
                              data-category="<?php echo htmlspecialchars($category); ?>"
                              data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
                              data-price="<?php echo (float)$product['price']; ?>"
+                             data-code="<?php echo htmlspecialchars($productCode); ?>"
                                 data-stock="<?php echo (int)$product['stock']; ?>"
                              data-clickable="<?php echo $isOutOfStock ? '0' : '1'; ?>">
-                            <div class="product-icon">
-                                <?php
-                                $icons = [
-                                    'Tools' => '<i class="fas fa-hammer"></i>',
-                                    'Paint' => '<i class="fas fa-paint-roller"></i>',
-                                    'Electrical' => '<i class="fas fa-bolt"></i>',
-                                    'Plumbing' => '<i class="fas fa-wrench"></i>',
-                                    'Fasteners' => '<i class="fas fa-screwdriver"></i>'
-                                ];
-                                echo $icons[$category] ?? '<i class="fas fa-box"></i>';
-                                ?>
-                            </div>
+                            <?php if ($productImage !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($productImage); ?>" alt="<?php echo htmlspecialchars($product['product_name']); ?>" class="product-photo">
+                            <?php else: ?>
+                                <div class="product-icon">
+                                    <?php
+                                    $icons = [
+                                        'Tools' => '<i class="fas fa-hammer"></i>',
+                                        'Paint' => '<i class="fas fa-paint-roller"></i>',
+                                        'Electrical' => '<i class="fas fa-bolt"></i>',
+                                        'Plumbing' => '<i class="fas fa-wrench"></i>',
+                                        'Fasteners' => '<i class="fas fa-screwdriver"></i>'
+                                    ];
+                                    echo $icons[$category] ?? '<i class="fas fa-box"></i>';
+                                    ?>
+                                </div>
+                            <?php endif; ?>
                             <div class="product-name"><?php echo htmlspecialchars($product['product_name']); ?></div>
                             <div class="product-category"><?php echo htmlspecialchars($category); ?></div>
+                            <div class="product-code">Code: <?php echo htmlspecialchars($productCode); ?></div>
                             <div class="product-price">₱<?php echo number_format($product['price'], 2); ?></div>
                             <div class="product-stock <?php echo $product['stock'] < 10 ? 'low' : ''; ?>">
                                 <?php echo $isOutOfStock ? 'Out of Stock' : $product['stock'] . ' in stock'; ?>
@@ -325,10 +398,31 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                     </div>
                 </div>
                 <div class="cart-checkout-panel">
+                    <div class="cart-promo-panel">
+                        <div class="cart-panel-heading">
+                            <h4><i class="fas fa-tags"></i> Apply Promo</h4>
+                            <span>Pattern: <strong>AAAA##</strong></span>
+                        </div>
+                        <div class="cart-promo-form">
+                            <input type="text" id="promoCodeInput" placeholder="Example: SAVE10" maxlength="6" oninput="validatePromoCodeField()">
+                            <button type="button" class="dfa-action-btn cart-promo-btn" onclick="applyPromoCode()">Apply</button>
+                        </div>
+                        <div class="dfa-status idle" id="promoCodeStatus">Waiting for a promo code.</div>
+                        <div class="active-promo-badge" id="activePromoBadge" style="display: none;"></div>
+                    </div>
+
                     <div class="cart-summary" id="cartSummary" style="display: none;">
                         <div class="summary-row">
                             <span>Subtotal:</span>
                             <span id="subtotal">₱0.00</span>
+                        </div>
+                        <div class="summary-row" id="promoRow" style="display: none;">
+                            <span>Promo:</span>
+                            <span id="promoLabel">None</span>
+                        </div>
+                        <div class="summary-row" id="discountRow" style="display: none;">
+                            <span>Discount:</span>
+                            <span id="discount">-₱0.00</span>
                         </div>
                         <div class="summary-row total">
                             <span>Total:</span>
@@ -451,6 +545,7 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                     <th>Product ID</th>
                                     <th>Product Name</th>
                                     <th>Category</th>
+                                    <th>Product Code</th>
                                     <th>Price</th>
                                     <th>Status</th>
                                     <th>Stock</th>
@@ -466,11 +561,16 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                         <?php
                                         $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
                                         $isLowStock = ((int)$product['stock']) < 10;
+                                        $tableCategory = $product['category_name'] ?? 'N/A';
+                                        $tableCode = !empty($product['product_code'] ?? '')
+                                            ? strtoupper((string)$product['product_code'])
+                                            : buildProductCode($product['id'], $tableCategory, (string)($product['code_prefix'] ?? ''));
                                         ?>
                                         <tr>
                                             <td><?php echo $product['id']; ?></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($product['category_name'] ?? 'N/A'); ?></td>
+                                            <td><?php echo htmlspecialchars($tableCategory); ?></td>
+                                            <td><span class="product-code-badge"><?php echo htmlspecialchars($tableCode); ?></span></td>
                                             <td>₱<?php echo number_format($product['price'], 2); ?></td>
                                             <td>
                                                 <span class="status-pill status-<?php echo $statusClass; ?>">
@@ -494,7 +594,7 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                     <?php endwhile; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="8" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
+                                        <td colspan="9" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -511,15 +611,20 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                     $adminCategory = $product['category_name'] ?? 'N/A';
                                     $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
                                     $isLowStock = ((int)$product['stock']) < 10;
+                                    $adminCode = !empty($product['product_code'] ?? '')
+                                        ? strtoupper((string)$product['product_code'])
+                                        : buildProductCode($product['id'], $adminCategory, (string)($product['code_prefix'] ?? ''));
                             ?>
                                 <div class="admin-product-card"
                                      data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
                                      data-category="<?php echo htmlspecialchars($adminCategory); ?>"
+                                     data-code="<?php echo htmlspecialchars($adminCode); ?>"
                                      data-price="<?php echo (float)$product['price']; ?>"
                                      data-stock="<?php echo (int)$product['stock']; ?>">
                                     <div class="admin-card-title"><?php echo htmlspecialchars($product['product_name']); ?></div>
                                     <div class="admin-card-meta">ID: <?php echo $product['id']; ?></div>
                                     <div class="admin-card-meta">Category: <?php echo htmlspecialchars($adminCategory); ?></div>
+                                    <div class="admin-card-meta">Code: <span class="product-code-badge"><?php echo htmlspecialchars($adminCode); ?></span></div>
                                     <div class="admin-card-price">₱<?php echo number_format($product['price'], 2); ?></div>
                                     <div class="admin-card-stock">Stock: <span class="stock-value <?php echo $isLowStock ? 'low-stock' : ''; ?>"><?php echo (int)$product['stock']; ?></span></div>
                                     <div class="admin-card-status status-<?php echo $statusClass; ?>"><?php echo strtoupper(htmlspecialchars($product['status'])); ?></div>
@@ -667,869 +772,12 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     <?php if ($isRegularUser): ?>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
-        let activeCategory = 'all';
-        function updateDateTime() {
-            const now = new Date();
-            const options = {
-                weekday: 'short',
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            };
-            const dateTimeEl = document.getElementById('currentDateTime');
-            if (dateTimeEl) {
-                dateTimeEl.textContent = now.toLocaleString('en-US', options);
-            }
-        }
-
-        function toggleTransactionHistory() {
-            const overlay = document.getElementById('transactionHistoryOverlay');
-            if (!overlay) return;
-
-            if (overlay.style.display === 'none' || overlay.style.display === '') {
-                overlay.style.display = 'flex';
-            } else {
-                overlay.style.display = 'none';
-            }
-        }
-
-        let cart = [];
-        let selectedPaymentMethod = null;
-        let selectedCustomer = null;
-        let savedOrder = null;
-        let isCompletingOrder = false;
-        let collectCustomerDetails = false;
-        let customerRegistry = <?php echo json_encode($registered_customers, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-
-        function normalizeCategory(value) {
-            return String(value || '').trim().toLowerCase();
-        }
-
-        function initializePOSCardClicks() {
-            const cards = document.querySelectorAll('.product-card[data-clickable="1"]');
-            cards.forEach(card => {
-                card.addEventListener('click', () => {
-                    const id = parseInt(card.dataset.id, 10);
-                    const name = card.dataset.name;
-                    const price = parseFloat(card.dataset.price);
-                    const category = card.dataset.category;
-                    const stock = parseInt(card.dataset.stock, 10);
-                    addToCart(id, name, price, category, stock);
-                });
-            });
-        }
-
-        function selectPaymentMethod(method) {
-            selectedPaymentMethod = method;
-            const buttons = document.querySelectorAll('.payment-option');
-            buttons.forEach(btn => {
-                if (btn.dataset.method === method) {
-                    btn.classList.add('selected');
-                } else {
-                    btn.classList.remove('selected');
-                }
-            });
-
-            const cashDetails = document.getElementById('cashPaymentDetails');
-            if (cashDetails) {
-                cashDetails.style.display = method === 'Cash' ? 'block' : 'none';
-            }
-
-            updateCashChange();
-
-            updateCheckoutButtons();
-        }
-
-        function updateCheckoutButtons() {
-            const officialReceiptBtn = document.getElementById('officialReceiptBtn');
-            const quickProcessBtn = document.getElementById('quickProcessBtn');
-            const isDisabled = cart.length === 0 || !selectedPaymentMethod;
-
-            if (officialReceiptBtn) {
-                officialReceiptBtn.disabled = isDisabled;
-            }
-
-            if (quickProcessBtn) {
-                quickProcessBtn.disabled = isDisabled;
-            }
-        }
-
-        function renderCustomerPickerList(searchTerm = '') {
-            const listEl = document.getElementById('customerPickerList');
-            const proceedBtn = document.getElementById('proceedReceiptBtn');
-            if (!listEl) return;
-
-            const filter = String(searchTerm || '').trim().toLowerCase();
-            const filtered = customerRegistry.filter(customer => {
-                const fullName = String(customer.full_name || '').toLowerCase();
-                const phone = String(customer.phone || '').toLowerCase();
-                const email = String(customer.email || '').toLowerCase();
-                return !filter || fullName.includes(filter) || phone.includes(filter) || email.includes(filter);
-            });
-
-            if (filtered.length === 0) {
-                listEl.innerHTML = '<div class="customer-picker-empty">No customers found. Use Add New Customer.</div>';
-                if (proceedBtn) proceedBtn.disabled = !selectedCustomer?.id;
-                return;
-            }
-
-            const rows = filtered.map(customer => {
-                const isActive = selectedCustomer && Number(selectedCustomer.id) === Number(customer.id);
-                return `
-                    <button type="button" class="customer-picker-item ${isActive ? 'active' : ''}" onclick="selectCustomerFromPicker(${Number(customer.id)})">
-                        <span class="name">${escapeHtml(customer.full_name || 'N/A')}</span>
-                        <span class="meta">${escapeHtml(customer.phone || 'N/A')} · ${escapeHtml(customer.email || 'N/A')}</span>
-                    </button>
-                `;
-            }).join('');
-
-            listEl.innerHTML = rows;
-            if (proceedBtn) proceedBtn.disabled = !selectedCustomer?.id;
-        }
-
-        function openCustomerPickerModal() {
-            const modal = document.getElementById('selectCustomerModal');
-            const searchInput = document.getElementById('customerPickerSearch');
-            if (searchInput) searchInput.value = '';
-            renderCustomerPickerList('');
-            if (modal) modal.style.display = 'flex';
-            if (searchInput) searchInput.focus();
-        }
-
-        function closeCustomerPickerModal() {
-            const modal = document.getElementById('selectCustomerModal');
-            if (modal) modal.style.display = 'none';
-        }
-
-        function filterCustomerPickerList() {
-            const searchInput = document.getElementById('customerPickerSearch');
-            renderCustomerPickerList(searchInput?.value || '');
-        }
-
-        function selectCustomerFromPicker(customerId) {
-            const customer = customerRegistry.find(item => Number(item.id) === Number(customerId));
-            if (!customer) return;
-            selectedCustomer = customer;
-            renderCustomerPickerList(document.getElementById('customerPickerSearch')?.value || '');
-        }
-
-        function openCreateCustomerFromPicker() {
-            closeCustomerPickerModal();
-            const searchText = (document.getElementById('customerPickerSearch')?.value || '').trim();
-            document.getElementById('newCustomerName').value = '';
-            document.getElementById('newCustomerEmail').value = '';
-            document.getElementById('newCustomerPhone').value = /^\+?[0-9\-\s]{6,20}$/.test(searchText) ? searchText : '';
-            document.getElementById('createCustomerModal').style.display = 'flex';
-        }
-
-        async function proceedOfficialReceiptCheckout() {
-            if (!selectedCustomer?.id) {
-                alert('Please select a customer for official receipt.');
-                return;
-            }
-
-            closeCustomerPickerModal();
-            const isSaved = await saveOrder(false);
-            if (isSaved) {
-                printOrderSummary();
-            }
-        }
-
-        function hasCustomerDetails(orderData = savedOrder, customerData = selectedCustomer) {
-            if (orderData && typeof orderData.has_customer_details !== 'undefined') {
-                return !!orderData.has_customer_details;
-            }
-
-            return !!(customerData && (customerData.full_name || customerData.phone || customerData.email));
-        }
-
-        function updateCashChange() {
-            const cashAmountInput = document.getElementById('cashAmount');
-            const cashChange = document.getElementById('cashChange');
-
-            if (!cashAmountInput || !cashChange) return;
-
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const cashReceived = parseFloat(cashAmountInput.value || '0');
-            const change = cashReceived - total;
-
-            if (change >= 0) {
-                cashChange.textContent = '₱' + change.toFixed(2);
-                cashChange.classList.remove('insufficient');
-            } else {
-                cashChange.textContent = '₱0.00';
-                cashChange.classList.add('insufficient');
-            }
-        }
-
-        function addToCart(id, name, price, category, stock) {
-            const maxStock = Number.isFinite(stock) ? stock : parseInt(stock, 10);
-            const existingItem = cart.find(item => item.id === id);
-            
-            if (existingItem) {
-                if (existingItem.quantity >= existingItem.stock) {
-                    alert('Cannot add more. Stock limit reached for this product.');
-                    return;
-                }
-                existingItem.quantity++;
-            } else {
-                const icons = {
-                    'Tools': '<i class="fas fa-hammer"></i>',
-                    'Paint': '<i class="fas fa-paint-roller"></i>',
-                    'Electrical': '<i class="fas fa-bolt"></i>',
-                    'Plumbing': '<i class="fas fa-wrench"></i>',
-                    'Fasteners': '<i class="fas fa-screwdriver"></i>'
-                };
-                cart.push({
-                    id: id,
-                    name: name,
-                    price: price,
-                    quantity: 1,
-                    stock: maxStock,
-                    icon: icons[category] || '<i class="fas fa-box"></i>'
-                });
-            }
-            
-            updateCart();
-        }
-
-        function updateQuantity(id, change) {
-            const item = cart.find(item => item.id === id);
-            if (item) {
-                if (change > 0 && item.quantity >= item.stock) {
-                    alert('Cannot add more. Stock limit reached for this product.');
-                    return;
-                }
-                item.quantity += change;
-                if (item.quantity <= 0) {
-                    removeFromCart(id);
-                } else {
-                    updateCart();
-                }
-            }
-        }
-
-        function removeFromCart(id) {
-            cart = cart.filter(item => item.id !== id);
-            updateCart();
-        }
-
-        function closeCreateCustomerModal() {
-            const modal = document.getElementById('createCustomerModal');
-            if (modal) modal.style.display = 'none';
-            const nameInput = document.getElementById('newCustomerName');
-            const phoneInput = document.getElementById('newCustomerPhone');
-            const emailInput = document.getElementById('newCustomerEmail');
-            if (nameInput) nameInput.value = '';
-            if (phoneInput) phoneInput.value = '';
-            if (emailInput) emailInput.value = '';
-        }
-
-        function closeOrderSummary() {
-            const modal = document.getElementById('orderSummaryModal');
-            if (modal) modal.style.display = 'none';
-        }
-
-        function updateCart() {
-            const cartItemsContainer = document.getElementById('cartItems');
-            const cartSummary = document.getElementById('cartSummary');
-            const paymentSelector = document.getElementById('paymentMethodSelector');
-            const cashDetails = document.getElementById('cashPaymentDetails');
-            const cashAmountInput = document.getElementById('cashAmount');
-            const cashChange = document.getElementById('cashChange');
-            
-            if (cart.length === 0) {
-                cartItemsContainer.innerHTML = `
-                    <div class="cart-empty">
-                        <i class="fas fa-shopping-cart"></i>
-                        <p>Your cart is empty</p>
-                    </div>
-                `;
-                cartSummary.style.display = 'none';
-                selectedPaymentMethod = null;
-                collectCustomerDetails = false;
-                if (paymentSelector) {
-                    paymentSelector.style.display = 'none';
-                }
-                document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('selected'));
-
-                if (cashDetails) cashDetails.style.display = 'none';
-                if (cashAmountInput) cashAmountInput.value = '';
-                if (cashChange) {
-                    cashChange.textContent = '₱0.00';
-                    cashChange.classList.remove('insufficient');
-                }
-                selectedCustomer = null;
-                savedOrder = null;
-                updateCheckoutButtons();
-            } else {
-                let html = '';
-                let subtotal = 0;
-                
-                cart.forEach(item => {
-                    const itemTotal = item.price * item.quantity;
-                    subtotal += itemTotal;
-                    
-                    html += `
-                        <div class="cart-item">
-                            <div class="cart-item-icon">${item.icon}</div>
-                            <div class="cart-item-details">
-                                <div class="cart-item-name">${item.name}</div>
-                                <div class="cart-item-price">₱${item.price.toFixed(2)}</div>
-                            </div>
-                            <div class="cart-item-controls">
-                                <button class="qty-btn" onclick="updateQuantity(${item.id}, -1)">−</button>
-                                <span class="qty-display">${item.quantity}</span>
-                                <button class="qty-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
-                                <button class="remove-btn" onclick="removeFromCart(${item.id})">×</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                cartItemsContainer.innerHTML = html;
-                document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
-                document.getElementById('total').textContent = '₱' + subtotal.toFixed(2);
-                cartSummary.style.display = 'block';
-                if (paymentSelector) {
-                    paymentSelector.style.display = 'block';
-                }
-                updateCheckoutButtons();
-
-                updateCashChange();
-            }
-        }
-
-        function searchPOSProducts() {
-            applyPOSFilters();
-        }
-
-        function applyPOSFilters() {
-            const input = document.getElementById('posSearchInput');
-            const filter = input.value.toLowerCase();
-            const cards = document.querySelectorAll('.product-card');
-            const noProductsMessage = document.getElementById('noProductsMessage');
-            let visibleCount = 0;
-            
-            cards.forEach(card => {
-                const itemName = card.querySelector('.product-name').textContent.toLowerCase();
-                const itemCategory = card.querySelector('.product-category').textContent.toLowerCase();
-                const categoryMatch = activeCategory === 'all' || normalizeCategory(card.dataset.category) === activeCategory;
-                const searchMatch = itemName.includes(filter) || itemCategory.includes(filter);
-                
-                if (categoryMatch && searchMatch) {
-                    card.style.display = '';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-
-            if (noProductsMessage) {
-                if (visibleCount === 0) {
-                    noProductsMessage.textContent = activeCategory === 'all'
-                        ? 'No Products Available.'
-                        : 'No Products Available in this category.';
-                    noProductsMessage.style.display = 'block';
-                } else {
-                    noProductsMessage.style.display = 'none';
-                }
-            }
-        }
-
-        function filterCategory(category, element) {
-            const buttons = document.querySelectorAll('.category-btn');
-            
-            buttons.forEach(btn => btn.classList.remove('active'));
-            if (element) {
-                element.classList.add('active');
-            }
-            activeCategory = category === 'all' ? 'all' : normalizeCategory(category);
-            searchPOSProducts();
-        }
-
-        function validateCheckout() {
-            if (cart.length === 0) return;
-            if (!selectedPaymentMethod) {
-                alert('Please select a payment method.');
-                return false;
-            }
-
-            if (selectedPaymentMethod === 'Cash') {
-                const cashAmountInput = document.getElementById('cashAmount');
-                const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                const cashReceived = parseFloat(cashAmountInput?.value || '0');
-                if (!cashReceived || cashReceived < total) {
-                    alert('Cash received must be greater than or equal to the total amount.');
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        async function checkoutWithReceipt() {
-            if (!validateCheckout()) {
-                return;
-            }
-
-            collectCustomerDetails = true;
-            selectedCustomer = null;
-            openCustomerPickerModal();
-        }
-
-        async function checkoutWithoutReceipt() {
-            if (!validateCheckout()) {
-                return;
-            }
-
-            collectCustomerDetails = false;
-            selectedCustomer = null;
-            await saveOrder(false);
-        }
-
-        async function createCustomerAndContinue() {
-            const fullName = (document.getElementById('newCustomerName').value || '').trim();
-            const phone = (document.getElementById('newCustomerPhone').value || '').trim();
-            const email = (document.getElementById('newCustomerEmail').value || '').trim();
-
-            if (!fullName || !phone) {
-                alert('Full name and phone are required.');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('full_name', fullName);
-            formData.append('phone', phone);
-            formData.append('email', email);
-
-            try {
-                const response = await fetch('../backend/create_customer.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    alert(data.error || 'Failed to create customer.');
-                    return;
-                }
-
-                selectedCustomer = data.customer;
-                customerRegistry.push(data.customer);
-                closeCreateCustomerModal();
-
-                if (collectCustomerDetails) {
-                    const isSaved = await saveOrder(false);
-                    if (isSaved) {
-                        printOrderSummary();
-                    }
-                }
-            } catch (error) {
-                console.error(error);
-                alert('Error creating customer.');
-            }
-        }
-
-        function buildSummaryHtml(orderRefText, orderDateText) {
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const includeCustomerDetails = hasCustomerDetails();
-            const itemsRows = cart.map(item => `
-                <tr>
-                    <td>${item.name}</td>
-                    <td>${item.quantity}</td>
-                    <td>₱${item.price.toFixed(2)}</td>
-                    <td>₱${(item.price * item.quantity).toFixed(2)}</td>
-                </tr>
-            `).join('');
-
-            let paymentExtra = '';
-            if (selectedPaymentMethod === 'Cash') {
-                const cashReceived = parseFloat(document.getElementById('cashAmount')?.value || '0');
-                const change = Math.max(cashReceived - total, 0);
-                paymentExtra = `<div>Cash Received: ₱${cashReceived.toFixed(2)}</div><div>Change: ₱${change.toFixed(2)}</div>`;
-            }
-
-            return {
-                customerHtml: includeCustomerDetails ? `
-                    <h4>Customer Details</h4>
-                    <div>Name: ${selectedCustomer?.full_name || 'N/A'}</div>
-                    <div>Phone: ${selectedCustomer?.phone || 'N/A'}</div>
-                    <div>Email: ${selectedCustomer?.email || 'N/A'}</div>
-                ` : '',
-                invoiceHtml: `
-                    <h4>Invoice Details</h4>
-                    <div>Invoice Number: ${orderRefText}</div>
-                    <div>Invoice Date: ${orderDateText}</div>
-                    <div>Payment Mode: ${selectedPaymentMethod}</div>
-                    ${paymentExtra}
-                `,
-                productsHtml: `
-                    <h4>Products</h4>
-                    <table class="summary-products-table">
-                        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
-                        <tbody>${itemsRows}</tbody>
-                    </table>
-                    <div class="summary-total-row">Total: ₱${total.toFixed(2)}</div>
-                `
-            };
-        }
-
-        function showOrderSummary() {
-            if (collectCustomerDetails && !selectedCustomer) {
-                alert('Customer is required before order summary.');
-                return;
-            }
-
-            const invoiceNo = savedOrder?.tracking_no || 'Pending (save to generate)';
-            const invoiceDate = savedOrder?.order_date || new Date().toLocaleString();
-            const blocks = buildSummaryHtml(invoiceNo, invoiceDate);
-
-            const summaryCustomerBlock = document.getElementById('summaryCustomerBlock');
-            if (summaryCustomerBlock) {
-                summaryCustomerBlock.innerHTML = blocks.customerHtml;
-                summaryCustomerBlock.style.display = blocks.customerHtml ? 'block' : 'none';
-            }
-            document.getElementById('summaryInvoiceBlock').innerHTML = blocks.invoiceHtml;
-            document.getElementById('summaryProductsBlock').innerHTML = blocks.productsHtml;
-
-            const saveBtn = document.getElementById('saveOrderBtn');
-            const printBtn = document.getElementById('printOrderBtn');
-            const downloadBtn = document.getElementById('downloadOrderBtn');
-            if (saveBtn) {
-                saveBtn.disabled = !!savedOrder;
-                saveBtn.textContent = savedOrder ? 'Order Auto-Saved' : 'Save Order';
-            }
-            if (printBtn) printBtn.disabled = !savedOrder;
-            if (downloadBtn) downloadBtn.disabled = !savedOrder;
-
-            document.getElementById('orderSummaryModal').style.display = 'flex';
-        }
-
-        async function saveOrder(showSuccessAlert = true) {
-            if (collectCustomerDetails && !selectedCustomer) {
-                alert('Customer is required.');
-                return false;
-            }
-
-            if (savedOrder) {
-                showOrderSummary();
-                if (showSuccessAlert) {
-                    alert(`Order already saved with invoice number ${savedOrder.tracking_no}.`);
-                }
-                return true;
-            }
-
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const formData = new FormData();
-            formData.append('cart', JSON.stringify(cart));
-            formData.append('total', total.toFixed(2));
-            formData.append('payment_method', selectedPaymentMethod);
-            formData.append('collect_customer_details', collectCustomerDetails ? '1' : '0');
-
-            if (selectedCustomer?.id) {
-                formData.append('customer_id', selectedCustomer.id);
-            }
-
-            if (selectedPaymentMethod === 'Cash') {
-                const cashReceived = parseFloat(document.getElementById('cashAmount')?.value || '0');
-                const change = Math.max(cashReceived - total, 0);
-                formData.append('cash_received', cashReceived.toFixed(2));
-                formData.append('cash_change', change.toFixed(2));
-            }
-
-            try {
-                const response = await fetch('../backend/place_order.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    alert(data.error || 'Failed to save order.');
-                    return false;
-                }
-
-                savedOrder = data;
-                showOrderSummary();
-                if (showSuccessAlert) {
-                    alert('Order saved successfully. You can now print or download PDF.');
-                }
-                return true;
-            } catch (error) {
-                console.error(error);
-                alert('Error saving order.');
-                return false;
-            }
-        }
-
-        async function completeOrder() {
-            if (isCompletingOrder) {
-                return;
-            }
-
-            isCompletingOrder = true;
-            const doneBtn = document.getElementById('doneOrderBtn');
-            if (doneBtn) doneBtn.disabled = true;
-
-            try {
-                let processed = !!savedOrder;
-                if (!processed) {
-                    processed = await saveOrder(false);
-                }
-
-                if (!processed) {
-                    return;
-                }
-
-                alert('Order processed successfully. Inventory has been updated.');
-                window.location.reload();
-            } finally {
-                isCompletingOrder = false;
-                if (doneBtn) doneBtn.disabled = false;
-            }
-        }
-
-        function formatCurrency(value) {
-            return Number(value || 0).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
-
-        function escapeHtml(text) {
-            return String(text ?? 'N/A')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        function getCompanyDetails() {
-            return {
-                name: '9toFive Convenience Store',
-                address1: '94 Kamuning Road, Brgy. Kamuning, Quezon City, 1103 Metro Manila, Philippines',
-                address2: '9toFive Retail Solutions Inc.'
-            };
-        }
-
-        function buildInvoiceHtml(order, customer, items) {
-            const company = getCompanyDetails();
-            const includeCustomerDetails = hasCustomerDetails(order, customer);
-            const grandTotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
-            const rows = items.map((item, index) => {
-                const subtotal = Number(item.price) * Number(item.quantity);
-                return `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${escapeHtml(item.name)}</td>
-                        <td>${formatCurrency(item.price)}</td>
-                        <td>${item.quantity}</td>
-                        <td><strong>${formatCurrency(subtotal)}</strong></td>
-                    </tr>
-                `;
-            }).join('');
-
-            return `
-                <html>
-                <head>
-                    <title>Order ${escapeHtml(order.tracking_no)}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 18px; color: #222; }
-                        .header { text-align: center; margin-bottom: 14px; }
-                        .header h2 { margin: 0 0 6px; }
-                        .header p { margin: 2px 0; color: #444; font-size: 14px; }
-                        .top-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 10px; }
-                        .top-grid h3 { margin: 0 0 6px; font-size: 20px; }
-                        .top-grid p { margin: 3px 0; font-size: 14px; }
-                        .top-grid .right { text-align: right; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-                        thead th { text-align: left; border-bottom: 1px solid #999; padding: 8px 6px; }
-                        td { border-bottom: 1px solid #ddd; padding: 8px 6px; }
-                        .bottom { display: flex; justify-content: space-between; margin-top: 12px; font-size: 20px; }
-                        .grand { font-weight: 700; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h2>${escapeHtml(company.name)}</h2>
-                        <p>${escapeHtml(company.address1)}</p>
-                        <p>${escapeHtml(company.address2)}</p>
-                    </div>
-
-                    <div class="top-grid" style="grid-template-columns: ${includeCustomerDetails ? '1fr 1fr' : '1fr'};">
-                        ${includeCustomerDetails ? `<div>
-                            <h3>Customer Details</h3>
-                            <p>Customer Name: ${escapeHtml(customer.full_name)}</p>
-                            <p>Customer Phone No: ${escapeHtml(customer.phone)}</p>
-                            <p>Customer Email Id: ${escapeHtml(customer.email || 'N/A')}</p>
-                        </div>` : ''}
-                        <div class="right">
-                            <h3>Invoice Details</h3>
-                            <p>Invoice No: ${escapeHtml(order.tracking_no)}</p>
-                            <p>Invoice Date: ${escapeHtml(order.order_date)}</p>
-                        </div>
-                    </div>
-
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Product Name</th>
-                                <th>Price</th>
-                                <th>Quantity</th>
-                                <th>Total Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-
-                    <div class="bottom">
-                        <div>Payment Mode: ${escapeHtml(order.payment_method)}</div>
-                        <div class="grand">Grand Total: ${formatCurrency(grandTotal)}</div>
-                    </div>
-                </body>
-                </html>
-            `;
-        }
-
-        function printOrderSummary() {
-            if (!savedOrder) {
-                alert('Please save the order first.');
-                return;
-            }
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) return;
-            const orderData = {
-                tracking_no: savedOrder?.tracking_no || 'N/A',
-                order_date: savedOrder?.order_date || new Date().toLocaleString(),
-                payment_method: selectedPaymentMethod || 'N/A',
-                has_customer_details: savedOrder?.has_customer_details ?? hasCustomerDetails(savedOrder, selectedCustomer)
-            };
-            printWindow.document.write(buildInvoiceHtml(orderData, selectedCustomer || {}, cart));
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-        }
-
-        function downloadOrderPdf() {
-            if (!savedOrder) {
-                alert('Please save the order first.');
-                return;
-            }
-
-            const jspdfRef = window.jspdf;
-            if (!jspdfRef || !jspdfRef.jsPDF) {
-                alert('PDF library is not loaded.');
-                return;
-            }
-
-            const doc = new jspdfRef.jsPDF();
-            const company = getCompanyDetails();
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const leftX = 14;
-            const rightX = pageWidth - 14;
-            const includeCustomerDetails = hasCustomerDetails(savedOrder, selectedCustomer);
-            const total = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
-            let y = 16;
-
-            doc.setFontSize(17);
-            doc.text(company.name, pageWidth / 2, y, { align: 'center' });
-            y += 7;
-            doc.setFontSize(10);
-            doc.text(company.address1, pageWidth / 2, y, { align: 'center' });
-            y += 5;
-            doc.text(company.address2, pageWidth / 2, y, { align: 'center' });
-            y += 10;
-
-            doc.setFontSize(12);
-            if (includeCustomerDetails) {
-                doc.text('Customer Details', leftX, y);
-                doc.text('Invoice Details', rightX, y, { align: 'right' });
-            } else {
-                doc.text('Invoice Details', leftX, y);
-            }
-            y += 6;
-
-            doc.setFontSize(10);
-            if (includeCustomerDetails) {
-                doc.text(`Customer Name: ${selectedCustomer?.full_name || 'N/A'}`, leftX, y);
-                doc.text(`Invoice No: ${savedOrder?.tracking_no || 'N/A'}`, rightX, y, { align: 'right' });
-            } else {
-                doc.text(`Invoice No: ${savedOrder?.tracking_no || 'N/A'}`, leftX, y);
-            }
-            y += 5;
-            if (includeCustomerDetails) {
-                doc.text(`Customer Phone No: ${selectedCustomer?.phone || 'N/A'}`, leftX, y);
-                doc.text(`Invoice Date: ${savedOrder?.order_date || new Date().toLocaleString()}`, rightX, y, { align: 'right' });
-            } else {
-                doc.text(`Invoice Date: ${savedOrder?.order_date || new Date().toLocaleString()}`, leftX, y);
-            }
-            y += 5;
-            if (includeCustomerDetails) {
-                doc.text(`Customer Email Id: ${selectedCustomer?.email || 'N/A'}`, leftX, y);
-                y += 8;
-            } else {
-                y += 3;
-            }
-
-            const col = { id: 14, name: 26, price: 132, qty: 158, total: 181 };
-            doc.setLineWidth(0.2);
-            doc.line(leftX, y - 3, rightX, y - 3);
-            doc.text('ID', col.id, y);
-            doc.text('Product Name', col.name, y);
-            doc.text('Price', col.price, y);
-            doc.text('Quantity', col.qty, y);
-            doc.text('Total Price', col.total, y);
-            y += 4;
-            doc.line(leftX, y, rightX, y);
-            y += 5;
-
-            cart.forEach((item, index) => {
-                const rowTotal = Number(item.price) * Number(item.quantity);
-                doc.text(String(index + 1), col.id, y);
-                doc.text(String(item.name || 'N/A'), col.name, y);
-                doc.text(formatCurrency(item.price), col.price, y);
-                doc.text(String(item.quantity), col.qty, y);
-                doc.text(formatCurrency(rowTotal), col.total, y);
-                y += 6;
-
-                if (y > 272) {
-                    doc.addPage();
-                    y = 16;
-                }
-            });
-
-            doc.line(leftX, y - 2, rightX, y - 2);
-            y += 6;
-            doc.setFontSize(11);
-            doc.text(`Payment Mode: ${selectedPaymentMethod || 'N/A'}`, leftX, y);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Grand Total: ${formatCurrency(total)}`, rightX, y, { align: 'right' });
-            doc.save(`${savedOrder.tracking_no}.pdf`);
-        }
-
-        function toggleMobileMenu() {
-            const nav = document.getElementById('mobileNav');
-            nav.classList.toggle('active');
-        }
-
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
-        initializePOSCardClicks();
-        searchPOSProducts();
+        var customerRegistry = <?php echo json_encode($registered_customers, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     </script>
+    <script src="js/pos.js"></script>
     <?php else: ?>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/dashboard.js"></script>
-    <script>
-        function toggleMobileMenu() {
-            const nav = document.getElementById('mobileNav');
-            nav.classList.toggle('active');
-        }
-    </script>
     <?php endif; ?>
 </body>
 </html>
