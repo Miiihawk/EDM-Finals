@@ -543,6 +543,7 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                             <thead>
                                 <tr>
                                     <th>Product ID</th>
+                                    <th>Photo</th>
                                     <th>Product Name</th>
                                     <th>Category</th>
                                     <th>Product Code</th>
@@ -562,12 +563,26 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                         $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
                                         $isLowStock = ((int)$product['stock']) < 10;
                                         $tableCategory = $product['category_name'] ?? 'N/A';
+                                        $tableProductImage = '';
+                                        if (!empty($product['image_blob'])) {
+                                            $tableMime = !empty($product['image_mime']) ? (string)$product['image_mime'] : 'image/jpeg';
+                                            $tableProductImage = 'data:' . $tableMime . ';base64,' . base64_encode($product['image_blob']);
+                                        } elseif (!empty($product['image_path'])) {
+                                            $tableProductImage = trim((string)$product['image_path']);
+                                        }
                                         $tableCode = !empty($product['product_code'] ?? '')
                                             ? strtoupper((string)$product['product_code'])
                                             : buildProductCode($product['id'], $tableCategory, (string)($product['code_prefix'] ?? ''));
                                         ?>
                                         <tr>
                                             <td><?php echo $product['id']; ?></td>
+                                            <td>
+                                                <?php if ($tableProductImage !== ''): ?>
+                                                    <img src="<?php echo htmlspecialchars($tableProductImage); ?>" alt="<?php echo htmlspecialchars($product['product_name']); ?>" class="admin-table-product-photo">
+                                                <?php else: ?>
+                                                    <span class="admin-table-no-photo">No Photo</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($tableCategory); ?></td>
                                             <td><span class="product-code-badge"><?php echo htmlspecialchars($tableCode); ?></span></td>
@@ -594,7 +609,7 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                     <?php endwhile; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="9" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
+                                        <td colspan="10" style="text-align: center;">No products found. <a href="add_product.php">Add a product</a></td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -611,6 +626,13 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                     $adminCategory = $product['category_name'] ?? 'N/A';
                                     $statusClass = strtolower(str_replace(' ', '-', (string)$product['status']));
                                     $isLowStock = ((int)$product['stock']) < 10;
+                                    $adminProductImage = '';
+                                    if (!empty($product['image_blob'])) {
+                                        $adminMime = !empty($product['image_mime']) ? (string)$product['image_mime'] : 'image/jpeg';
+                                        $adminProductImage = 'data:' . $adminMime . ';base64,' . base64_encode($product['image_blob']);
+                                    } elseif (!empty($product['image_path'])) {
+                                        $adminProductImage = trim((string)$product['image_path']);
+                                    }
                                     $adminCode = !empty($product['product_code'] ?? '')
                                         ? strtoupper((string)$product['product_code'])
                                         : buildProductCode($product['id'], $adminCategory, (string)($product['code_prefix'] ?? ''));
@@ -621,6 +643,13 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                                      data-code="<?php echo htmlspecialchars($adminCode); ?>"
                                      data-price="<?php echo (float)$product['price']; ?>"
                                      data-stock="<?php echo (int)$product['stock']; ?>">
+                                    <div class="admin-card-photo-wrap">
+                                        <?php if ($adminProductImage !== ''): ?>
+                                            <img src="<?php echo htmlspecialchars($adminProductImage); ?>" alt="<?php echo htmlspecialchars($product['product_name']); ?>" class="admin-card-photo">
+                                        <?php else: ?>
+                                            <div class="admin-card-no-photo">No Photo</div>
+                                        <?php endif; ?>
+                                    </div>
                                     <div class="admin-card-title"><?php echo htmlspecialchars($product['product_name']); ?></div>
                                     <div class="admin-card-meta">ID: <?php echo $product['id']; ?></div>
                                     <div class="admin-card-meta">Category: <?php echo htmlspecialchars($adminCategory); ?></div>
