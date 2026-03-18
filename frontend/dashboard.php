@@ -119,6 +119,9 @@ $admin_total_products = 0;
 $admin_total_categories = 0;
 $admin_total_customers = 0;
 $admin_today_orders = 0;
+$admin_current_month_profit = 0;
+$admin_monthly_profit_rows = [];
+$admin_payment_method_rows = [];
 $admin_orders_result = false;
 
 if ($_SESSION['role'] == 'admin') {
@@ -140,6 +143,46 @@ if ($_SESSION['role'] == 'admin') {
     $todayOrdersResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM orders WHERE DATE(order_date) = CURDATE()");
     if ($todayOrdersResult) {
         $admin_today_orders = (int)(mysqli_fetch_assoc($todayOrdersResult)['total'] ?? 0);
+    }
+
+    $currentMonthProfitResult = mysqli_query(
+        $conn,
+        "SELECT COALESCE(SUM(total_amount), 0) AS total
+         FROM orders
+         WHERE DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+    );
+    if ($currentMonthProfitResult) {
+        $admin_current_month_profit = (float)(mysqli_fetch_assoc($currentMonthProfitResult)['total'] ?? 0);
+    }
+
+    $monthlyProfitQuery = "SELECT
+                            DATE_FORMAT(order_date, '%Y-%m') AS month_key,
+                            DATE_FORMAT(order_date, '%b %Y') AS month_label,
+                            COALESCE(SUM(total_amount), 0) AS monthly_profit,
+                            COUNT(*) AS order_count
+                        FROM orders
+                        GROUP BY month_key, month_label
+                        ORDER BY month_key DESC
+                        LIMIT 6";
+    $monthlyProfitResult = mysqli_query($conn, $monthlyProfitQuery);
+    if ($monthlyProfitResult) {
+        while ($monthRow = mysqli_fetch_assoc($monthlyProfitResult)) {
+            $admin_monthly_profit_rows[] = $monthRow;
+        }
+    }
+
+    $paymentMethodQuery = "SELECT
+                            COALESCE(payment_method, 'Unknown') AS payment_method,
+                            COUNT(*) AS order_count,
+                            COALESCE(SUM(total_amount), 0) AS amount_total
+                        FROM orders
+                        GROUP BY payment_method
+                        ORDER BY order_count DESC";
+    $paymentMethodResult = mysqli_query($conn, $paymentMethodQuery);
+    if ($paymentMethodResult) {
+        while ($paymentRow = mysqli_fetch_assoc($paymentMethodResult)) {
+            $admin_payment_method_rows[] = $paymentRow;
+        }
     }
 
     $admin_orders_query = "SELECT o.id, o.tracking_no, o.order_date, o.payment_method, o.total_amount,
@@ -407,7 +450,6 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                             <input type="text" id="promoCodeInput" placeholder="Example: SAVE10" maxlength="6" oninput="validatePromoCodeField()">
                             <button type="button" class="dfa-action-btn cart-promo-btn" onclick="applyPromoCode()">Apply</button>
                         </div>
-                        <div class="dfa-status idle" id="promoCodeStatus">Waiting for a promo code.</div>
                         <div class="active-promo-badge" id="activePromoBadge" style="display: none;"></div>
                     </div>
 
@@ -489,6 +531,16 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeCreateCustomerModal()">Cancel</button>
                     <button type="button" class="btn-primary" onclick="createCustomerAndContinue()">Save Customer</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-modal" id="invalidPromoModal" style="display: none;" onclick="if(event.target===this){closeInvalidPromoModal();}">
+            <div class="order-modal-card" style="width: min(420px, 95vw);">
+                <h3>Invalid Promo Code</h3>
+                <p class="modal-note" id="invalidPromoMessage">The promo code is invalid.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-primary" onclick="closeInvalidPromoModal()">OK</button>
                 </div>
             </div>
         </div>
@@ -676,71 +728,117 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
 
                 <div id="adminOrdersSection" style="display: none;">
 
-                <div class="admin-analytics-grid">
-                    <div class="analytics-card">
-                        <div class="analytics-label">Today's Orders</div>
-                        <div class="analytics-value"><?php echo $admin_today_orders; ?></div>
-                    </div>
-                    <div class="analytics-card">
-                        <div class="analytics-label">Total Categories</div>
-                        <div class="analytics-value"><?php echo $admin_total_categories; ?></div>
-                    </div>
-                    <div class="analytics-card">
-                        <div class="analytics-label">Total Products</div>
-                        <div class="analytics-value"><?php echo $admin_total_products; ?></div>
-                    </div>
-                    <div class="analytics-card">
-                        <div class="analytics-label">Total Customers</div>
-                        <div class="analytics-value"><?php echo $admin_total_customers; ?></div>
+                <div class="admin-orders-tabs">
+                    <button type="button" class="admin-orders-tab-btn active" id="adminOrdersTabHistory" onclick="setAdminOrdersTab('history')">
+                        <i class="fas fa-history"></i> Order History
+                    </button>
+                    <button type="button" class="admin-orders-tab-btn" id="adminOrdersTabAnalytics" onclick="setAdminOrdersTab('analytics')">
+                        <i class="fas fa-chart-line"></i> Analytics
+                    </button>
+                </div>
+
+                <div id="adminOrderHistoryTabPanel">
+                    <div class="admin-orders-panel">
+                        <div class="orders-panel-header">
+                            <h2>Order History</h2>
+                            <div class="orders-filters">
+                                <input type="date" id="orderDateFilter" onchange="filterOrders()">
+                                <select id="orderPaymentFilter" onchange="filterOrders()">
+                                    <option value="">All Payments</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Card">Card</option>
+                                    <option value="GCash">GCash</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="orders-table-wrap">
+                            <table class="products-table" id="ordersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Tracking No</th>
+                                        <th>Order Date</th>
+                                        <th>Payment</th>
+                                        <th>Customer</th>
+                                        <th>Phone</th>
+                                        <th>Total</th>
+                                        <th>Created By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if ($admin_orders_result && mysqli_num_rows($admin_orders_result) > 0): ?>
+                                        <?php while ($order = mysqli_fetch_assoc($admin_orders_result)): ?>
+                                            <tr data-order-date="<?php echo date('Y-m-d', strtotime($order['order_date'])); ?>" data-payment-method="<?php echo htmlspecialchars($order['payment_method']); ?>">
+                                                <td><?php echo htmlspecialchars($order['tracking_no']); ?></td>
+                                                <td><?php echo date('M d, Y h:i A', strtotime($order['order_date'])); ?></td>
+                                                <td><?php echo htmlspecialchars($order['payment_method']); ?></td>
+                                                <td><?php echo htmlspecialchars($order['full_name'] ?? 'N/A'); ?></td>
+                                                <td><?php echo htmlspecialchars($order['phone'] ?? 'N/A'); ?></td>
+                                                <td>₱<?php echo number_format($order['total_amount'], 2); ?></td>
+                                                <td><?php echo htmlspecialchars($order['created_by'] ?? 'N/A'); ?></td>
+                                                <td><button type="button" class="btn-update" onclick="viewOrderDetails(<?php echo (int)$order['id']; ?>)">View</button></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="8" style="text-align: center;">No orders found.</td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <div class="admin-orders-panel">
-                    <div class="orders-panel-header">
-                        <h2>Orders</h2>
-                        <div class="orders-filters">
-                            <input type="date" id="orderDateFilter" onchange="filterOrders()">
-                            <select id="orderPaymentFilter" onchange="filterOrders()">
-                                <option value="">All Payments</option>
-                                <option value="Cash">Cash</option>
-                                <option value="Card">Card</option>
-                                <option value="GCash">GCash</option>
-                            </select>
+                <div id="adminAnalyticsTabPanel" style="display: none;">
+                    <div class="admin-analytics-grid">
+                        <div class="analytics-card">
+                            <div class="analytics-label">Today's Orders</div>
+                            <div class="analytics-value"><?php echo $admin_today_orders; ?></div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-label">Monthly Profit</div>
+                            <div class="analytics-value">₱<?php echo number_format($admin_current_month_profit, 2); ?></div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-label">Total Categories</div>
+                            <div class="analytics-value"><?php echo $admin_total_categories; ?></div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-label">Total Products</div>
+                            <div class="analytics-value"><?php echo $admin_total_products; ?></div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-label">Total Customers</div>
+                            <div class="analytics-value"><?php echo $admin_total_customers; ?></div>
                         </div>
                     </div>
-                    <div class="orders-table-wrap">
-                        <table class="products-table" id="ordersTable">
-                            <thead>
-                                <tr>
-                                    <th>Tracking No</th>
-                                    <th>Order Date</th>
-                                    <th>Payment</th>
-                                    <th>Customer</th>
-                                    <th>Phone</th>
-                                    <th>Total</th>
-                                    <th>Created By</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if ($admin_orders_result && mysqli_num_rows($admin_orders_result) > 0): ?>
-                                    <?php while ($order = mysqli_fetch_assoc($admin_orders_result)): ?>
-                                        <tr data-order-date="<?php echo date('Y-m-d', strtotime($order['order_date'])); ?>" data-payment-method="<?php echo htmlspecialchars($order['payment_method']); ?>">
-                                            <td><?php echo htmlspecialchars($order['tracking_no']); ?></td>
-                                            <td><?php echo date('M d, Y h:i A', strtotime($order['order_date'])); ?></td>
-                                            <td><?php echo htmlspecialchars($order['payment_method']); ?></td>
-                                            <td><?php echo htmlspecialchars($order['full_name'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($order['phone'] ?? 'N/A'); ?></td>
-                                            <td>₱<?php echo number_format($order['total_amount'], 2); ?></td>
-                                            <td><?php echo htmlspecialchars($order['created_by'] ?? 'N/A'); ?></td>
-                                            <td><button type="button" class="btn-update" onclick="viewOrderDetails(<?php echo (int)$order['id']; ?>)">View</button></td>
-                                        </tr>
-                                    <?php endwhile; ?>
-                                <?php else: ?>
-                                    <tr><td colspan="8" style="text-align: center;">No orders found.</td></tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+
+                    <div class="monthly-profit-panel">
+                        <div class="monthly-profit-title">Monthly Profits (Last 6 Months)</div>
+                        <?php if (!empty($admin_monthly_profit_rows)): ?>
+                            <div class="monthly-profit-list">
+                                <?php foreach ($admin_monthly_profit_rows as $profitRow): ?>
+                                    <div class="monthly-profit-item">
+                                        <span class="month-label"><?php echo htmlspecialchars($profitRow['month_label']); ?></span>
+                                        <span class="month-meta"><?php echo (int)($profitRow['order_count'] ?? 0); ?> orders</span>
+                                        <strong class="month-profit">₱<?php echo number_format((float)($profitRow['monthly_profit'] ?? 0), 2); ?></strong>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="monthly-profit-empty">No monthly profit data yet.</div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="admin-charts-grid">
+                        <div class="admin-chart-card">
+                            <div class="chart-title">Monthly Profit Trend</div>
+                            <canvas id="monthlyProfitChart" aria-label="Monthly profit trend chart"></canvas>
+                        </div>
+                        <div class="admin-chart-card">
+                            <div class="chart-title">Payment Method Breakdown</div>
+                            <canvas id="paymentMethodChart" aria-label="Payment method breakdown chart"></canvas>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -806,6 +904,13 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     <script src="js/pos.js"></script>
     <?php else: ?>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script>
+        window.adminChartData = {
+            monthlyProfit: <?php echo json_encode($admin_monthly_profit_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+            paymentMethods: <?php echo json_encode($admin_payment_method_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>
+        };
+    </script>
     <script src="js/dashboard.js"></script>
     <?php endif; ?>
 </body>

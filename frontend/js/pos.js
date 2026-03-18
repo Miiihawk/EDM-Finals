@@ -266,22 +266,12 @@ function handleProductCodeInput() {
 // Promo field interaction
 function validatePromoCodeField() {
   const input = document.getElementById("promoCodeInput");
+  if (input) {
+    input.value = String(input.value || "")
+      .toUpperCase()
+      .replace(/\s+/g, "");
+  }
   const promo = buildPromoFromCode(input?.value || "");
-
-  if (promo.empty) {
-    updateStatusBadge("promoCodeStatus", "idle", "Waiting for a promo code.");
-    return promo;
-  }
-  if (!promo.valid) {
-    updateStatusBadge("promoCodeStatus", "error", promo.message);
-    return promo;
-  }
-
-  updateStatusBadge(
-    "promoCodeStatus",
-    "success",
-    `Accepted by DFA. ${promo.code} will apply a ${promo.discountPercent}% discount.`,
-  );
   return promo;
 }
 
@@ -296,11 +286,6 @@ function applyPromoCode() {
       badge.style.display = "none";
       badge.textContent = "";
     }
-    updateStatusBadge(
-      "promoCodeStatus",
-      "idle",
-      "Promo cleared. Waiting for a new promo code.",
-    );
     updateCart();
     return;
   }
@@ -311,7 +296,7 @@ function applyPromoCode() {
       badge.style.display = "none";
       badge.textContent = "";
     }
-    updateStatusBadge("promoCodeStatus", "error", promo.message);
+    showInvalidPromoModal(promo.message || "The promo code is invalid.");
     updateCart();
     return;
   }
@@ -322,12 +307,26 @@ function applyPromoCode() {
     badge.style.display = "inline-flex";
     badge.textContent = `Applied ${promo.code} for ${promo.discountPercent}% off`;
   }
-  updateStatusBadge(
-    "promoCodeStatus",
-    "success",
-    `Promo ${promo.code} accepted and applied to the order total.`,
-  );
   updateCart();
+}
+
+function showInvalidPromoModal(message) {
+  const modal = document.getElementById("invalidPromoModal");
+  const messageEl = document.getElementById("invalidPromoMessage");
+  if (messageEl) {
+    messageEl.textContent =
+      String(message || "").trim() || "The promo code is invalid.";
+  }
+  if (modal) {
+    modal.style.display = "flex";
+  }
+}
+
+function closeInvalidPromoModal() {
+  const modal = document.getElementById("invalidPromoModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
 }
 
 // Add product by code
@@ -641,7 +640,6 @@ function updateCart() {
       promoBadge.style.display = "none";
       promoBadge.textContent = "";
     }
-    updateStatusBadge("promoCodeStatus", "idle", "Waiting for a promo code.");
     updateCheckoutButtons();
   } else {
     const subtotal = getCartSubtotal();
@@ -994,8 +992,7 @@ function escapeHtml(text) {
 function getCompanyDetails() {
   return {
     name: "9toFive Convenience Store",
-    address1:
-      "94 Kamuning Rd, Diliman, Quezon City, 1103 Metro Manila",
+    address1: "94 Kamuning Rd, Diliman, Quezon City, 1103 Metro Manila",
     address2: "9toFive Retail Solutions Inc.",
   };
 }

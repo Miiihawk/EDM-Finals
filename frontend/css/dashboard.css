@@ -171,6 +171,28 @@ body {
   overflow: hidden;
 }
 
+#adminOrdersSection {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#adminAnalyticsTabPanel,
+#adminOrderHistoryTabPanel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+#adminAnalyticsTabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .products-section.full-width {
   max-width: 100%;
 }
@@ -399,7 +421,7 @@ body {
 
 .admin-analytics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 
@@ -431,6 +453,32 @@ body {
   padding: 16px;
 }
 
+.admin-orders-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-orders-tab-btn {
+  padding: 10px 14px;
+  border: 1px solid #d9e1ee;
+  background: #ffffff;
+  color: #4f6078;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-orders-tab-btn.active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
 .orders-panel-header {
   display: flex;
   justify-content: space-between;
@@ -458,6 +506,85 @@ body {
 .orders-table-wrap {
   max-height: 320px;
   overflow: auto;
+}
+
+.monthly-profit-panel {
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #f9fbff;
+}
+
+.monthly-profit-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #43546c;
+  margin-bottom: 8px;
+}
+
+.monthly-profit-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.monthly-profit-item {
+  border: 1px solid #e0e8f4;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monthly-profit-item .month-label {
+  color: #2c3e50;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.monthly-profit-item .month-meta {
+  color: #6f7f95;
+  font-size: 12px;
+}
+
+.monthly-profit-item .month-profit {
+  color: #1d6f46;
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.monthly-profit-empty {
+  color: #6f7f95;
+  font-size: 13px;
+}
+
+.admin-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-chart-card {
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #43546c;
+  margin-bottom: 8px;
+}
+
+.admin-chart-card canvas {
+  width: 100% !important;
+  height: 240px !important;
 }
 
 .order-modal {

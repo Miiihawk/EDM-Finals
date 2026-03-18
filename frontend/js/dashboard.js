@@ -1,5 +1,9 @@
 let adminView = "table";
 let activeAdminOrder = null;
+let adminOrdersTab = "history";
+let monthlyProfitChartInstance = null;
+let paymentMethodChartInstance = null;
+let chartsInitialized = false;
 
 function toggleMobileMenu() {
   const nav = document.getElementById("mobileNav");
@@ -21,8 +25,8 @@ function setAdminSection(section) {
 
   const showOrders = section === "orders";
 
-  productsSection.style.display = showOrders ? "none" : "block";
-  ordersSection.style.display = showOrders ? "block" : "none";
+  productsSection.style.display = showOrders ? "none" : "flex";
+  ordersSection.style.display = showOrders ? "flex" : "none";
   if (logsSection) {
     logsSection.style.display = showOrders ? "none" : "flex";
   }
@@ -31,11 +35,161 @@ function setAdminSection(section) {
   ordersTab.classList.toggle("active", showOrders);
 
   if (showOrders) {
-    filterOrders();
+    setAdminOrdersTab(adminOrdersTab);
   } else {
     searchProducts();
     sortProducts();
   }
+}
+
+function setAdminOrdersTab(tab) {
+  const analyticsPanel = document.getElementById("adminAnalyticsTabPanel");
+  const historyPanel = document.getElementById("adminOrderHistoryTabPanel");
+  const analyticsBtn = document.getElementById("adminOrdersTabAnalytics");
+  const historyBtn = document.getElementById("adminOrdersTabHistory");
+
+  if (!analyticsPanel || !historyPanel || !analyticsBtn || !historyBtn) {
+    return;
+  }
+
+  adminOrdersTab = tab === "history" ? "history" : "analytics";
+  const showAnalytics = adminOrdersTab === "analytics";
+
+  analyticsPanel.style.display = showAnalytics ? "block" : "none";
+  historyPanel.style.display = showAnalytics ? "none" : "block";
+  analyticsBtn.classList.toggle("active", showAnalytics);
+  historyBtn.classList.toggle("active", !showAnalytics);
+
+  if (showAnalytics) {
+    initAdminCharts();
+  } else {
+    const dateFilter = document.getElementById("orderDateFilter");
+    const paymentFilter = document.getElementById("orderPaymentFilter");
+    if (dateFilter) {
+      dateFilter.value = "";
+    }
+    if (paymentFilter) {
+      paymentFilter.value = "";
+    }
+    filterOrders();
+  }
+}
+
+function initAdminCharts() {
+  if (chartsInitialized) {
+    return;
+  }
+
+  if (!window.Chart || !window.adminChartData) {
+    return;
+  }
+
+  const monthlyProfitCanvas = document.getElementById("monthlyProfitChart");
+  const paymentMethodCanvas = document.getElementById("paymentMethodChart");
+  if (!monthlyProfitCanvas || !paymentMethodCanvas) {
+    return;
+  }
+
+  const monthlyRows = Array.isArray(window.adminChartData.monthlyProfit)
+    ? [...window.adminChartData.monthlyProfit]
+    : [];
+  monthlyRows.sort((a, b) =>
+    String(a.month_key || "").localeCompare(String(b.month_key || "")),
+  );
+
+  const monthLabels = monthlyRows.map((row) => row.month_label || "N/A");
+  const monthProfits = monthlyRows.map((row) =>
+    Number(row.monthly_profit || 0),
+  );
+  const monthOrders = monthlyRows.map((row) => Number(row.order_count || 0));
+
+  monthlyProfitChartInstance = new Chart(monthlyProfitCanvas, {
+    type: "line",
+    data: {
+      labels: monthLabels,
+      datasets: [
+        {
+          label: "Profit (PHP)",
+          data: monthProfits,
+          borderColor: "#4f73e8",
+          backgroundColor: "rgba(79, 115, 232, 0.16)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+        },
+        {
+          label: "Orders",
+          data: monthOrders,
+          borderColor: "#27ae60",
+          backgroundColor: "rgba(39, 174, 96, 0.12)",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: "top" },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (value) => `PHP ${Number(value).toLocaleString("en-US")}`,
+          },
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+
+  const paymentRows = Array.isArray(window.adminChartData.paymentMethods)
+    ? window.adminChartData.paymentMethods
+    : [];
+  const paymentLabels = paymentRows.map(
+    (row) => row.payment_method || "Unknown",
+  );
+  const paymentCounts = paymentRows.map((row) => Number(row.order_count || 0));
+
+  paymentMethodChartInstance = new Chart(paymentMethodCanvas, {
+    type: "doughnut",
+    data: {
+      labels: paymentLabels,
+      datasets: [
+        {
+          data: paymentCounts,
+          backgroundColor: [
+            "#4f73e8",
+            "#27ae60",
+            "#f39c12",
+            "#8e44ad",
+            "#95a5a6",
+          ],
+          borderColor: "#ffffff",
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+      },
+      cutout: "62%",
+    },
+  });
+
+  chartsInitialized = true;
 }
 
 function setAdminView(view) {
@@ -534,5 +688,6 @@ function downloadAdminOrderPdf() {
 document.addEventListener("DOMContentLoaded", () => {
   setAdminView("table");
   setAdminSection("products");
+  setAdminOrdersTab("history");
   filterOrders();
 });
