@@ -76,6 +76,114 @@ Primary tables from `backend/setup.sql`:
 - `orders`
 - `order_items`
 
+## Entity Descriptions
+
+### Users
+
+- Primary Key: `id`
+- Important Attributes:
+  - `username`
+  - `password`
+  - `first_name`
+  - `last_name`
+  - `role`
+  - `created_at`
+- Purpose:
+  - The Users table stores system accounts that are allowed to access the POS platform. Each user is assigned a role such as administrator or regular user (cashier). The table enables authentication, user identification, and role-based access control within the system.
+
+### Categories
+
+- Primary Key: `id`
+- Important Attributes:
+  - `category_name`
+  - `code_prefix`
+  - `created_at`
+- Purpose:
+  - The Categories table groups products into logical classifications. This allows products to be organized into categories such as beverages, snacks, or household items, making product management and navigation easier.
+
+### Products
+
+- Primary Key: `id`
+- Foreign Key: `category_id` references `categories(id)`
+- Important Attributes:
+  - `product_name`
+  - `product_code`
+  - `image_path`
+  - `image_blob`
+  - `image_mime`
+  - `price`
+  - `stock`
+  - `status`
+  - `created_at`
+- Purpose:
+  - The Products table stores information about all sellable items available in the store. Each product belongs to a specific category and includes its code, price, stock quantity, product photo, and availability status.
+
+### Customers
+
+- Primary Key: `id`
+- Important Attributes:
+  - `full_name`
+  - `phone`
+  - `email`
+  - `created_at`
+- Purpose:
+  - The Customers table stores customer information used during transactions that require official receipts or customer identification. This allows the system to maintain purchase records linked to specific customers.
+
+### Orders
+
+- Primary Key: `id`
+- Foreign Keys:
+  - `customer_id` references `customers(id)`
+  - `created_by` references `users(id)`
+- Important Attributes:
+  - `tracking_no`
+  - `payment_method`
+  - `subtotal`
+  - `total_amount`
+  - `cash_received`
+  - `cash_change`
+  - `order_date`
+- Purpose:
+  - The Orders table records transaction headers. Each record represents a completed purchase made by a customer and processed by a system user.
+
+### Order Items
+
+- Primary Key: `id`
+- Foreign Keys:
+  - `order_id` references `orders(id)`
+  - `product_id` references `products(id)`
+- Important Attributes:
+  - `quantity`
+  - `price`
+  - `subtotal`
+- Purpose:
+  - The Order Items table stores the individual products included in each order. This table allows the system to track detailed line-item sales and compute order totals.
+
+### Inventory History
+
+- Primary Key: `id`
+- Foreign Keys:
+  - `product_id` references `products(id)`
+  - `user_id` references `users(id)`
+- Important Attributes:
+  - `change_quantity`
+  - `reason`
+  - `created_at`
+- Purpose:
+  - The Inventory History table logs stock movements caused by product updates, restocking, or completed sales. This table provides traceability and allows administrators to monitor inventory changes.
+
+### Relationship Summary
+
+- One category can have many products.
+- One product can appear in many order items.
+- One order can contain many order items.
+- One customer can have many orders.
+- One user can create many orders.
+- One product can have many inventory history records.
+- One user can generate many inventory history records.
+
+This relational structure ensures that every product sale, stock movement, and user activity can be traced through the system.
+
 ## Configuration
 
 Update `backend/config.php` if needed:

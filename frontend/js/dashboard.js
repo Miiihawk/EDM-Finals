@@ -112,19 +112,19 @@ function sortTableView(sortBy) {
   visibleRows.sort((a, b) => {
     switch (sortBy) {
       case "name": {
-        const aValue = (a.cells[1]?.textContent || "").toLowerCase().trim();
-        const bValue = (b.cells[1]?.textContent || "").toLowerCase().trim();
+        const aValue = (a.cells[2]?.textContent || "").toLowerCase().trim();
+        const bValue = (b.cells[2]?.textContent || "").toLowerCase().trim();
         return aValue.localeCompare(bValue);
       }
       case "price": {
         const aValue = parseFloat(
-          (a.cells[4]?.textContent || "0")
+          (a.cells[5]?.textContent || "0")
             .replace("₱", "")
             .replace(/,/g, "")
             .trim(),
         );
         const bValue = parseFloat(
-          (b.cells[4]?.textContent || "0")
+          (b.cells[5]?.textContent || "0")
             .replace("₱", "")
             .replace(/,/g, "")
             .trim(),
@@ -132,13 +132,13 @@ function sortTableView(sortBy) {
         return aValue - bValue;
       }
       case "stock": {
-        const aValue = parseInt((a.cells[6]?.textContent || "0").trim(), 10);
-        const bValue = parseInt((b.cells[6]?.textContent || "0").trim(), 10);
+        const aValue = parseInt((a.cells[7]?.textContent || "0").trim(), 10);
+        const bValue = parseInt((b.cells[7]?.textContent || "0").trim(), 10);
         return aValue - bValue;
       }
       case "category": {
-        const aValue = (a.cells[2]?.textContent || "").toLowerCase().trim();
-        const bValue = (b.cells[2]?.textContent || "").toLowerCase().trim();
+        const aValue = (a.cells[3]?.textContent || "").toLowerCase().trim();
+        const bValue = (b.cells[3]?.textContent || "").toLowerCase().trim();
         return aValue.localeCompare(bValue);
       }
       default:
