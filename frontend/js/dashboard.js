@@ -1,9 +1,12 @@
 let adminView = "table";
 let activeAdminOrder = null;
 let adminOrdersTab = "history";
+let weeklyProfitChartInstance = null;
 let monthlyProfitChartInstance = null;
+let dailyProfitChartInstance = null;
 let paymentMethodChartInstance = null;
 let chartsInitialized = false;
+let activeAnalyticsChart = "daily";
 
 function toggleMobileMenu() {
   const nav = document.getElementById("mobileNav");
@@ -84,11 +87,78 @@ function initAdminCharts() {
     return;
   }
 
+  const weeklyProfitCanvas = document.getElementById("weeklyProfitChart");
   const monthlyProfitCanvas = document.getElementById("monthlyProfitChart");
+  const dailyProfitCanvas = document.getElementById("dailyProfitChart");
   const paymentMethodCanvas = document.getElementById("paymentMethodChart");
-  if (!monthlyProfitCanvas || !paymentMethodCanvas) {
+  if (
+    !weeklyProfitCanvas ||
+    !monthlyProfitCanvas ||
+    !dailyProfitCanvas ||
+    !paymentMethodCanvas
+  ) {
     return;
   }
+
+  const weeklyRows = Array.isArray(window.adminChartData.weeklyProfit)
+    ? [...window.adminChartData.weeklyProfit]
+    : [];
+  weeklyRows.sort((a, b) => Number(a.week_key || 0) - Number(b.week_key || 0));
+
+  const weekLabels = weeklyRows.map((row) =>
+    row.week_label ? `Week of ${row.week_label}` : "N/A",
+  );
+  const weekProfits = weeklyRows.map((row) => Number(row.weekly_profit || 0));
+  const weekOrders = weeklyRows.map((row) => Number(row.order_count || 0));
+
+  weeklyProfitChartInstance = new Chart(weeklyProfitCanvas, {
+    type: "line",
+    data: {
+      labels: weekLabels,
+      datasets: [
+        {
+          label: "Profit (PHP)",
+          data: weekProfits,
+          borderColor: "#4f73e8",
+          backgroundColor: "rgba(79, 115, 232, 0.16)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+        },
+        {
+          label: "Orders",
+          data: weekOrders,
+          borderColor: "#27ae60",
+          backgroundColor: "rgba(39, 174, 96, 0.12)",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: "top" },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (value) => `PHP ${Number(value).toLocaleString("en-US")}`,
+          },
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
 
   const monthlyRows = Array.isArray(window.adminChartData.monthlyProfit)
     ? [...window.adminChartData.monthlyProfit]
@@ -111,8 +181,8 @@ function initAdminCharts() {
         {
           label: "Profit (PHP)",
           data: monthProfits,
-          borderColor: "#4f73e8",
-          backgroundColor: "rgba(79, 115, 232, 0.16)",
+          borderColor: "#1f8fdf",
+          backgroundColor: "rgba(31, 143, 223, 0.15)",
           fill: true,
           tension: 0.35,
           pointRadius: 4,
@@ -121,11 +191,87 @@ function initAdminCharts() {
         {
           label: "Orders",
           data: monthOrders,
-          borderColor: "#27ae60",
-          backgroundColor: "rgba(39, 174, 96, 0.12)",
+          borderColor: "#f39c12",
+          backgroundColor: "rgba(243, 156, 18, 0.12)",
           fill: false,
           tension: 0.3,
           pointRadius: 3,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: "top" },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (value) => `PHP ${Number(value).toLocaleString("en-US")}`,
+          },
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+
+  const weekdayOrder = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const dailyRows = Array.isArray(window.adminChartData.dailyProfit)
+    ? window.adminChartData.dailyProfit
+    : [];
+
+  const dailyMap = new Map(
+    dailyRows.map((row) => [
+      String(row.day_label || ""),
+      {
+        profit: Number(row.daily_profit || 0),
+        orders: Number(row.order_count || 0),
+      },
+    ]),
+  );
+
+  const dayLabels = weekdayOrder;
+  const dayProfits = weekdayOrder.map((day) => dailyMap.get(day)?.profit || 0);
+  const dayOrders = weekdayOrder.map((day) => dailyMap.get(day)?.orders || 0);
+
+  dailyProfitChartInstance = new Chart(dailyProfitCanvas, {
+    type: "bar",
+    data: {
+      labels: dayLabels,
+      datasets: [
+        {
+          label: "Profit (PHP)",
+          data: dayProfits,
+          backgroundColor: "rgba(79, 115, 232, 0.45)",
+          borderColor: "#4f73e8",
+          borderWidth: 1,
+          borderRadius: 6,
+          yAxisID: "y",
+        },
+        {
+          label: "Orders",
+          data: dayOrders,
+          type: "line",
+          borderColor: "#27ae60",
+          backgroundColor: "rgba(39, 174, 96, 0.15)",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4,
           yAxisID: "y1",
         },
       ],
@@ -190,6 +336,30 @@ function initAdminCharts() {
   });
 
   chartsInitialized = true;
+  setActiveAnalyticsChart(activeAnalyticsChart);
+}
+
+function setActiveAnalyticsChart(chartType) {
+  const validCharts = ["weekly", "monthly", "daily"];
+  activeAnalyticsChart = validCharts.includes(chartType) ? chartType : "daily";
+
+  const chartCards = document.querySelectorAll(
+    "#adminAnalyticsTabPanel .admin-chart-card[data-chart]",
+  );
+  chartCards.forEach((card) => {
+    const isActive = card.dataset.chart === activeAnalyticsChart;
+    card.style.display = isActive ? "block" : "none";
+  });
+
+  const toggleButtons = document.querySelectorAll(
+    "#analyticsChartToggles .chart-toggle-btn",
+  );
+  toggleButtons.forEach((button) => {
+    button.classList.toggle(
+      "active",
+      button.dataset.chart === activeAnalyticsChart,
+    );
+  });
 }
 
 function setAdminView(view) {
@@ -469,9 +639,9 @@ function escapeHtml(text) {
 
 function getCompanyDetails() {
   return {
-    name: "9toFive Convenience Store",
+    name: "CornerMart Convenience Store",
     address1: "94 Kamuning Rd, Diliman, Quezon City, 1103 Metro Manila",
-    address2: "9toFive Retail Solutions Inc.",
+    address2: "CornerMart Retail Solutions Inc.",
   };
 }
 

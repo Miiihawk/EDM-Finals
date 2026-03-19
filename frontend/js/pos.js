@@ -991,9 +991,9 @@ function escapeHtml(text) {
 
 function getCompanyDetails() {
   return {
-    name: "9toFive Convenience Store",
+    name: "CornerMart Convenience Store",
     address1: "94 Kamuning Rd, Diliman, Quezon City, 1103 Metro Manila",
-    address2: "9toFive Retail Solutions Inc.",
+    address2: "CornerMart Retail Solutions Inc.",
   };
 }
 

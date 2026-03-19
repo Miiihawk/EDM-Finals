@@ -121,6 +121,8 @@ $admin_total_customers = 0;
 $admin_today_orders = 0;
 $admin_current_month_profit = 0;
 $admin_monthly_profit_rows = [];
+$admin_weekly_profit_rows = [];
+$admin_daily_profit_rows = [];
 $admin_payment_method_rows = [];
 $admin_orders_result = false;
 
@@ -168,6 +170,40 @@ if ($_SESSION['role'] == 'admin') {
     if ($monthlyProfitResult) {
         while ($monthRow = mysqli_fetch_assoc($monthlyProfitResult)) {
             $admin_monthly_profit_rows[] = $monthRow;
+        }
+    }
+
+    $weeklyProfitQuery = "SELECT
+                            YEARWEEK(order_date, 1) AS week_key,
+                            DATE_FORMAT(DATE_SUB(order_date, INTERVAL WEEKDAY(order_date) DAY), '%b %d, %Y') AS week_label,
+                            COALESCE(SUM(total_amount), 0) AS weekly_profit,
+                            COUNT(*) AS order_count
+                        FROM orders
+                        GROUP BY week_key, week_label
+                        ORDER BY week_key DESC
+                        LIMIT 8";
+    $weeklyProfitResult = mysqli_query($conn, $weeklyProfitQuery);
+    if ($weeklyProfitResult) {
+        while ($weekRow = mysqli_fetch_assoc($weeklyProfitResult)) {
+            $admin_weekly_profit_rows[] = $weekRow;
+        }
+    }
+
+    $dailyProfitQuery = "SELECT
+                            DAYOFWEEK(order_date) AS day_key,
+                            ELT(
+                                DAYOFWEEK(order_date),
+                                'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+                            ) AS day_label,
+                            COALESCE(SUM(total_amount), 0) AS daily_profit,
+                            COUNT(*) AS order_count
+                        FROM orders
+                        GROUP BY day_key, day_label
+                        ORDER BY day_key ASC";
+    $dailyProfitResult = mysqli_query($conn, $dailyProfitQuery);
+    if ($dailyProfitResult) {
+        while ($dayRow = mysqli_fetch_assoc($dailyProfitResult)) {
+            $admin_daily_profit_rows[] = $dayRow;
         }
     }
 
@@ -447,7 +483,7 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                             <span>Pattern: <strong>AAAA##</strong></span>
                         </div>
                         <div class="cart-promo-form">
-                            <input type="text" id="promoCodeInput" placeholder="Example: SAVE10" maxlength="6" oninput="validatePromoCodeField()">
+                            <input type="text" id="promoCodeInput" placeholder=" " maxlength="6" oninput="validatePromoCodeField()">
                             <button type="button" class="dfa-action-btn cart-promo-btn" onclick="applyPromoCode()">Apply</button>
                         </div>
                         <div class="active-promo-badge" id="activePromoBadge" style="display: none;"></div>
@@ -830,10 +866,24 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
                         <?php endif; ?>
                     </div>
 
+                    <div class="chart-toggle-group" id="analyticsChartToggles">
+                        <button type="button" class="chart-toggle-btn active" data-chart="daily" onclick="setActiveAnalyticsChart('daily')">Daily</button>
+                        <button type="button" class="chart-toggle-btn" data-chart="weekly" onclick="setActiveAnalyticsChart('weekly')">Weekly</button>
+                        <button type="button" class="chart-toggle-btn" data-chart="monthly" onclick="setActiveAnalyticsChart('monthly')">Monthly</button>
+                    </div>
+
                     <div class="admin-charts-grid">
-                        <div class="admin-chart-card">
+                        <div class="admin-chart-card" data-chart="weekly" style="display: none;">
+                            <div class="chart-title">Weekly Profit Trend</div>
+                            <canvas id="weeklyProfitChart" aria-label="Weekly profit trend chart"></canvas>
+                        </div>
+                        <div class="admin-chart-card" data-chart="monthly" style="display: none;">
                             <div class="chart-title">Monthly Profit Trend</div>
                             <canvas id="monthlyProfitChart" aria-label="Monthly profit trend chart"></canvas>
+                        </div>
+                        <div class="admin-chart-card" data-chart="daily">
+                            <div class="chart-title">Daily Profit and Orders (Sunday to Saturday)</div>
+                            <canvas id="dailyProfitChart" aria-label="Daily profit and order chart from sunday to saturday"></canvas>
                         </div>
                         <div class="admin-chart-card">
                             <div class="chart-title">Payment Method Breakdown</div>
@@ -907,7 +957,9 @@ if (isset($_GET['delete_id']) && $_SESSION['role'] == 'admin') {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script>
         window.adminChartData = {
+            weeklyProfit: <?php echo json_encode($admin_weekly_profit_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
             monthlyProfit: <?php echo json_encode($admin_monthly_profit_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+            dailyProfit: <?php echo json_encode($admin_daily_profit_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
             paymentMethods: <?php echo json_encode($admin_payment_method_rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>
         };
     </script>
