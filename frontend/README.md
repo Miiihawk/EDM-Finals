@@ -1,4 +1,4 @@
-# Frontend - 9toFive POS
+# Frontend - CornerMart POS
 
 Frontend pages and assets for the POS system.
 

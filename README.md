@@ -1,4 +1,4 @@
-# 9toFive POS System
+# CornerMart POS System
 
 PHP + MySQL point-of-sale system with role-based access for Admin and User workflows.
 
